@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>口腔诊所复诊排班工作台</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo">
+                    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="2" y="2" width="36" height="36" rx="10" fill="#0EA5E9"/>
+                        <path d="M20 10C15 10 12 13 12 17C12 22 15 27 20 30C25 27 28 22 28 17C28 13 25 10 20 10Z" fill="white" opacity="0.9"/>
+                        <path d="M17 17C17 15.5 18.5 14.5 20 14.5C21.5 14.5 23 15.5 23 17" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>口腔诊所复诊排班工作台</h1>
+                    <p class="subtitle">Dental Recall Scheduling System</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="user-info">
+                    <span class="user-avatar">前</span>
+                    <div>
+                        <span class="user-name">前台 · 王芳</span>
+                        <span class="user-role">门诊前台</span>
+                    </div>
+                </div>
+                <span class="current-date" id="currentDate"></span>
+            </div>
+        </header>
+
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="pending">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                复诊待安排
+                <span class="badge" id="pendingCount">0</span>
+            </button>
+            <button class="tab-btn" data-tab="appointment">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                </svg>
+                预约确认流程
+            </button>
+            <button class="tab-btn" data-tab="warning">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                爽约预警看板
+                <span class="badge warning-badge" id="warningCount">0</span>
+            </button>
+        </nav>
+
+        <main class="main-content">
+            <section class="tab-panel active" id="panel-pending">
+                <div class="panel-header">
+                    <h2>复诊待安排列表</h2>
+                    <p class="panel-desc">按条件筛选需要安排复诊的患者，系统自动计算建议复诊窗口</p>
+                </div>
+
+                <div class="filter-bar">
+                    <div class="filter-item">
+                        <label>主治医生</label>
+                        <select id="filterDoctor">
+                            <option value="">全部医生</option>
+                            <option value="李医生">李医生（种植科）</option>
+                            <option value="张医生">张医生（正畸科）</option>
+                            <option value="王医生">王医生（牙体牙髓）</option>
+                            <option value="赵医生">赵医生（修复科）</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>治疗项目</label>
+                        <select id="filterProject">
+                            <option value="">全部项目</option>
+                            <option value="种植">种植牙</option>
+                            <option value="正畸">正畸</option>
+                            <option value="根管">根管治疗</option>
+                            <option value="修复">冠桥修复</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>上次就诊日期</label>
+                        <input type="date" id="filterDateFrom" placeholder="起始日期">
+                        <span class="filter-sep">至</span>
+                        <input type="date" id="filterDateTo" placeholder="结束日期">
+                    </div>
+                    <div class="filter-item">
+                        <label>复诊紧急度</label>
+                        <select id="filterUrgency">
+                            <option value="">全部</option>
+                            <option value="overdue">已超期</option>
+                            <option value="urgent">即将到期（3天内）</option>
+                            <option value="normal">正常窗口内</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" id="btnSearch">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        筛选
+                    </button>
+                    <button class="btn btn-ghost" id="btnResetFilter">重置</button>
+                </div>
+
+                <div class="stats-bar">
+                    <div class="stat-card stat-overdue">
+                        <span class="stat-label">已超期</span>
+                        <span class="stat-value" id="statOverdue">0</span>
+                    </div>
+                    <div class="stat-card stat-urgent">
+                        <span class="stat-label">即将到期</span>
+                        <span class="stat-value" id="statUrgent">0</span>
+                    </div>
+                    <div class="stat-card stat-normal">
+                        <span class="stat-label">正常窗口</span>
+                        <span class="stat-value" id="statNormal">0</span>
+                    </div>
+                    <div class="stat-card stat-total">
+                        <span class="stat-label">待安排总数</span>
+                        <span class="stat-value" id="statTotal">0</span>
+                    </div>
+                </div>
+
+                <div class="data-table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>患者姓名</th>
+                                <th>性别/年龄</th>
+                                <th>联系电话</th>
+                                <th>治疗项目</th>
+                                <th>主治医生</th>
+                                <th>上次就诊</th>
+                                <th>建议复诊窗口</th>
+                                <th>紧急度</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="tab-panel" id="panel-appointment">
+                <div class="panel-header">
+                    <h2>确认预约流程</h2>
+                    <p class="panel-desc">为患者选择合适的医生、椅位和时间，生成复诊预约记录</p>
+                </div>
+
+                <div class="appointment-layout">
+                    <div class="appointment-form">
+                        <div class="form-section">
+                            <h3 class="section-title">
+                                <span class="step-num">1</span> 选择患者
+                            </h3>
+                            <div class="patient-select">
+                                <input type="text" id="patientSearch" placeholder="输入患者姓名或电话搜索..." class="search-input">
+                                <div class="selected-patient" id="selectedPatient" style="display:none;">
+                                    <div class="patient-avatar-mini" id="selPatientAvatar">张</div>
+                                    <div class="patient-info-mini">
+                                        <span class="patient-name" id="selPatientName"></span>
+                                        <span class="patient-meta" id="selPatientMeta"></span>
+                                    </div>
+                                    <button class="btn-clear" id="btnClearPatient">×</button>
+                                </div>
+                                <div class="patient-suggestions" id="patientSuggestions"></div>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h3 class="section-title">
+                                <span class="step-num">2</span> 选择医生与椅位
+                            </h3>
+                            <div class="doctor-chair-grid" id="doctorChairGrid">
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h3 class="section-title">
+                                <span class="step-num">3</span> 选择就诊时间
+                            </h3>
+                            <div class="datetime-picker">
+                                <div class="date-selector">
+                                    <label>就诊日期</label>
+                                    <div class="date-scroll" id="dateScroll">
+                                    </div>
+                                </div>
+                                <div class="time-selector">
+                                    <label>可选时段</label>
+                                    <div class="time-slots" id="timeSlots">
+                                    </div>
+                                </div>
+                                <div class="pref-time">
+                                    <label>患者偏好时间（备注）</label>
+                                    <input type="text" id="prefTime" placeholder="例如：尽量安排在上午、周末优先等">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h3 class="section-title">
+                                <span class="step-num">4</span> 附加服务与备注
+                            </h3>
+                            <div class="service-checks">
+                                <label class="check-item">
+                                    <input type="checkbox" id="needXray">
+                                    <span class="check-box"></span>
+                                    <div>
+                                        <span class="check-title">需要拍片</span>
+                                        <span class="check-desc">CBCT全景片或根尖片</span>
+                                    </div>
+                                </label>
+                                <label class="check-item">
+                                    <input type="checkbox" id="needMold">
+                                    <span class="check-box"></span>
+                                    <div>
+                                        <span class="check-title">需要取模</span>
+                                        <span class="check-desc">硅橡胶印模或数字扫描</span>
+                                    </div>
+                                </label>
+                                <label class="check-item">
+                                    <input type="checkbox" id="needConsult">
+                                    <span class="check-box"></span>
+                                    <div>
+                                        <span class="check-title">方案复诊沟通</span>
+                                        <span class="check-desc">预留充足沟通时间</span>
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="form-note">
+                                <label>治疗备注</label>
+                                <textarea id="treatmentNote" rows="3" placeholder="记录特殊注意事项、患者诉求等..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button class="btn btn-ghost" id="btnResetForm">清空重置</button>
+                            <button class="btn btn-primary btn-large" id="btnSubmitAppointment">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                确认预约并生成记录
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="appointment-preview">
+                        <div class="preview-card">
+                            <h3>预约信息预览</h3>
+                            <div class="preview-empty" id="previewEmpty">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                    <line x1="16" y1="2" x2="16" y2="6"/>
+                                    <line x1="8" y1="2" x2="8" y2="6"/>
+                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                                <p>请填写左侧表单<br>预约信息将在此预览</p>
+                            </div>
+                            <div class="preview-content" id="previewContent" style="display:none;">
+                                <div class="preview-row">
+                                    <span class="preview-label">患者</span>
+                                    <span class="preview-value" id="pvPatient">-</span>
+                                </div>
+                                <div class="preview-row">
+                                    <span class="preview-label">治疗项目</span>
+                                    <span class="preview-value" id="pvProject">-</span>
+                                </div>
+                                <div class="preview-row">
+                                    <span class="preview-label">主治医生</span>
+                                    <span class="preview-value" id="pvDoctor">-</span>
+                                </div>
+                                <div class="preview-row">
+                                    <span class="preview-label">椅位</span>
+                                    <span class="preview-value" id="pvChair">-</span>
+                                </div>
+                                <div class="preview-row">
+                                    <span class="preview-label">就诊日期</span>
+                                    <span class="preview-value" id="pvDate">-</span>
+                                </div>
+                                <div class="preview-row">
+                                    <span class="preview-label">就诊时间</span>
+                                    <span class="preview-value" id="pvTime">-</span>
+                                </div>
+                                <div class="preview-divider"></div>
+                                <div class="preview-services" id="pvServices">
+                                </div>
+                                <div class="preview-row preview-note-row" id="pvNoteRow" style="display:none;">
+                                    <span class="preview-label">备注</span>
+                                    <span class="preview-value" id="pvNote"></span>
+                                </div>
+                                <div class="preview-divider"></div>
+                                <div class="preview-row preview-total">
+                                    <span class="preview-label">预约时长</span>
+                                    <span class="preview-value" id="pvDuration">30 分钟</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="recent-records">
+                            <h3>最近生成的预约记录</h3>
+                            <div class="records-list" id="recentRecords">
+                                <p class="empty-text">暂无预约记录</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="tab-panel" id="panel-warning">
+                <div class="panel-header">
+                    <h2>爽约预警看板</h2>
+                    <p class="panel-desc">近30天内存在迟到、临时取消、未到记录的患者，预约前请电话确认</p>
+                </div>
+
+                <div class="warning-summary">
+                    <div class="warn-stat warn-red">
+                        <div class="warn-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="12" y1="8" x2="12" y2="12"/>
+                                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="warn-count" id="warnNoShow">0</span>
+                            <span class="warn-label">未到诊</span>
+                        </div>
+                    </div>
+                    <div class="warn-stat warn-orange">
+                        <div class="warn-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="warn-count" id="warnLate">0</span>
+                            <span class="warn-label">迟到</span>
+                        </div>
+                    </div>
+                    <div class="warn-stat warn-yellow">
+                        <div class="warn-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="warn-count" id="warnCancel">0</span>
+                            <span class="warn-label">临时取消</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="warning-table-wrapper">
+                    <table class="data-table warning-table">
+                        <thead>
+                            <tr>
+                                <th>风险等级</th>
+                                <th>患者姓名</th>
+                                <th>联系电话</th>
+                                <th>累计爽约</th>
+                                <th>最近一次</th>
+                                <th>处理状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="warningTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="modal" id="patientDetailModal">
+        <div class="modal-overlay" data-close="modal"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>患者复诊详情</h2>
+                <button class="modal-close" data-close="modal">×</button>
+            </div>
+            <div class="modal-body" id="patientDetailBody">
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="callConfirmModal">
+        <div class="modal-overlay" data-close="modal"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>电话确认记录</h2>
+                <button class="modal-close" data-close="modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="call-patient-info" id="callPatientInfo"></div>
+                <div class="call-form">
+                    <label>确认结果</label>
+                    <div class="call-result-options">
+                        <label class="radio-item">
+                            <input type="radio" name="callResult" value="confirmed">
+                            <span class="radio-dot"></span>
+                            <span>确认就诊，按时到达</span>
+                        </label>
+                        <label class="radio-item">
+                            <input type="radio" name="callResult" value="reschedule">
+                            <span class="radio-dot"></span>
+                            <span>需要改期</span>
+                        </label>
+                        <label class="radio-item">
+                            <input type="radio" name="callResult" value="uncertain">
+                            <span class="radio-dot"></span>
+                            <span>待定，稍后回复</span>
+                        </label>
+                        <label class="radio-item">
+                            <input type="radio" name="callResult" value="unreachable">
+                            <span class="radio-dot"></span>
+                            <span>无法联系（无人接听/关机）</span>
+                        </label>
+                    </div>
+                    <div class="reschedule-input" id="rescheduleInput" style="display:none;">
+                        <label>改期意向日期</label>
+                        <input type="date" id="rescheduleDate">
+                    </div>
+                    <label>沟通备注</label>
+                    <textarea id="callNote" rows="3" placeholder="记录与患者沟通的关键信息..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" data-close="modal">取消</button>
+                <button class="btn btn-primary" id="btnSaveCallRecord">保存记录</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
