@@ -8,10 +8,12 @@ const state = {
     currentHandoverPatient: null,
     filteredPatients: [...PATIENTS],
     filteredWarnings: [...WARNING_PATIENTS],
+    filteredHandover: [...PATIENTS],
     selectedPatientIds: new Set(),
     scheduleDate: null,
     scheduleView: 'day',
     pendingView: 'list',
+    followupTab: 'today',
     warningFilters: {
         risk: '',
         doctor: '',
@@ -24,6 +26,11 @@ const state = {
         dateFrom: '',
         dateTo: '',
         urgency: ''
+    },
+    handoverFilters: {
+        dateRange: 'today',
+        status: '',
+        doctor: ''
     },
     weekFilterDoctor: '',
     weekFilterChair: ''
@@ -778,6 +785,112 @@ function updatePreview() {
     if (activeServices.some(s => s.id === 'needMold')) duration += 15;
     if (activeServices.some(s => s.id === 'needConsult')) duration += 15;
     document.getElementById('pvDuration').textContent = `${duration} 分钟`;
+
+    checkAppointmentConflicts(duration, activeServices);
+}
+
+function checkAppointmentConflicts(duration, activeServices) {
+    const panel = document.getElementById('conflictAlertPanel');
+    const list = document.getElementById('conflictAlertList');
+    const conflicts = [];
+
+    if (!state.selectedDate && !state.selectedTime && !state.selectedPatient) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    if (state.selectedChair && state.selectedDate && state.selectedTime) {
+        const occupied = getOccupiedSlots(state.selectedChair, state.selectedDate);
+        if (occupied.has(state.selectedTime)) {
+            const appt = appointmentRecords.find(r =>
+                r.chair === state.selectedChair && r.date === state.selectedDate && r.time === state.selectedTime
+            );
+            if (appt) {
+                conflicts.push({
+                    type: 'danger',
+                    title: '椅位已被占用',
+                    detail: `该 ${state.selectedChair} ${formatDateShort(state.selectedDate)} ${state.selectedTime} 已被 ${appt.patient}（${appt.project}）预约，请更换椅位或时间`
+                });
+            } else {
+                conflicts.push({
+                    type: 'warning',
+                    title: '该时段已被占用',
+                    detail: `${state.selectedChair} ${state.selectedTime} 已预设为不可用，请选择其他时段`
+                });
+            }
+        }
+    }
+
+    if (state.selectedPatient && state.selectedDate) {
+        const sameDayAppt = appointmentRecords.find(r =>
+            r.patientId === state.selectedPatient.id && r.date === state.selectedDate && r.id !== state.currentAppointmentId
+        );
+        if (sameDayAppt) {
+            conflicts.push({
+                type: 'warning',
+                title: '患者当日已有预约',
+                detail: `${state.selectedPatient.name} ${formatDateShort(state.selectedDate)} ${sameDayAppt.time} 已在 ${sameDayAppt.chair} 预约了 ${sameDayAppt.project}，请注意是否冲突`
+            });
+        }
+    }
+
+    if (state.selectedDoctor && state.selectedDate && state.selectedTime) {
+        const sameTimeAppts = appointmentRecords.filter(r =>
+            r.doctor === state.selectedDoctor.name && r.date === state.selectedDate && r.time === state.selectedTime
+        );
+        const sameTimeChairs = sameTimeAppts.map(r => r.chair);
+        if (sameTimeChairs.length > 0 && (!state.selectedChair || !sameTimeChairs.includes(state.selectedChair))) {
+            conflicts.push({
+                type: 'warning',
+                title: '同医生同时段有其他预约',
+                detail: `${state.selectedDoctor.name} ${state.selectedTime} 在 ${sameTimeChairs.join('、')} 已有预约，可能分身乏术`
+            });
+        }
+    }
+
+    if (state.selectedTime && duration > 30) {
+        const timeIndex = TIME_SLOTS.indexOf(state.selectedTime);
+        if (timeIndex >= 0) {
+            const slotsNeeded = Math.ceil(duration / 15) - 2;
+            if (slotsNeeded > 0 && timeIndex + slotsNeeded < TIME_SLOTS.length) {
+                let overflowSlots = [];
+                for (let i = 1; i <= slotsNeeded; i++) {
+                    const nextTime = TIME_SLOTS[timeIndex + i];
+                    if (state.selectedChair && state.selectedDate) {
+                        const occupied = getOccupiedSlots(state.selectedChair, state.selectedDate);
+                        if (occupied.has(nextTime)) {
+                            overflowSlots.push(nextTime);
+                        }
+                    }
+                }
+                if (overflowSlots.length > 0) {
+                    conflicts.push({
+                        type: 'warning',
+                        title: '附加服务可能超时',
+                        detail: `预计时长 ${duration} 分钟，需占用后续时段，但 ${overflowSlots.join('、')} 已被占用，建议缩短服务或改期`
+                    });
+                } else if (slotsNeeded > 0) {
+                    conflicts.push({
+                        type: 'info',
+                        title: '附加服务占用后续时段',
+                        detail: `预计时长 ${duration} 分钟，将占用至 ${TIME_SLOTS[timeIndex + slotsNeeded] || '下班前'}，请确认后续时段无其他安排`
+                    });
+                }
+            }
+        }
+    }
+
+    if (conflicts.length === 0) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    panel.style.display = 'block';
+    list.innerHTML = conflicts.map(c => `
+        <div class="conflict-alert-item conflict-${c.type}">
+            <strong>${c.title}：</strong>${c.detail}
+        </div>
+    `).join('');
 }
 
 function initFormActions() {
@@ -942,7 +1055,7 @@ function renderWarningTable() {
     document.getElementById('warnNoShow').textContent = noShowTotal;
     document.getElementById('warnLate').textContent = lateTotal;
     document.getElementById('warnCancel').textContent = cancelTotal;
-    document.getElementById('warningCount').textContent = WARNING_PATIENTS.length;
+    document.getElementById('warningCount').textContent = warnings.length;
 
     const riskClass = { high: 'risk-high', medium: 'risk-medium', low: 'risk-low' };
     const riskText = { high: '高风险', medium: '中风险', low: '低风险' };
@@ -1035,6 +1148,7 @@ function openCallConfirm(patientId) {
     document.getElementById('rescheduleInput').style.display = 'none';
     document.getElementById('callNote').value = '';
     document.getElementById('rescheduleDate').value = '';
+    document.getElementById('nextFollowUpDate').value = '';
 
     document.getElementById('callConfirmModal').classList.add('show');
 }
@@ -1364,6 +1478,272 @@ function initWeekViewFilters() {
     });
 }
 
+function daysBetween(dateStr) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(dateStr);
+    target.setHours(0, 0, 0, 0);
+    return Math.floor((target - today) / (1000 * 60 * 60 * 24));
+}
+
+function initHandoverFilters() {
+    document.getElementById('btnHandoverSearch').addEventListener('click', applyHandoverFilters);
+    document.getElementById('btnHandoverReset').addEventListener('click', resetHandoverFilters);
+}
+
+function applyHandoverFilters() {
+    const dateRange = document.getElementById('handoverFilterDate').value;
+    const status = document.getElementById('handoverFilterStatus').value;
+    const doctor = document.getElementById('handoverFilterDoctor').value;
+
+    state.handoverFilters = { dateRange, status, doctor };
+
+    state.filteredHandover = PATIENTS.filter(p => {
+        if (status) {
+            const bs = p.batchStatus || 'none';
+            if (bs !== status) return false;
+        }
+        if (doctor && p.doctor !== doctor) return false;
+
+        if (dateRange === 'all') return true;
+
+        if (dateRange === 'today') {
+            if (!p.nextReminderDate) return true;
+            return daysBetween(p.nextReminderDate) <= 0;
+        }
+        if (dateRange === 'overdue') {
+            if (!p.nextReminderDate) return false;
+            return daysBetween(p.nextReminderDate) < 0;
+        }
+        if (dateRange === 'tomorrow') {
+            if (!p.nextReminderDate) return false;
+            return daysBetween(p.nextReminderDate) >= 1;
+        }
+        return true;
+    });
+
+    renderHandoverTable();
+    updateHandoverStats();
+}
+
+function resetHandoverFilters() {
+    document.getElementById('handoverFilterDate').value = 'today';
+    document.getElementById('handoverFilterStatus').value = '';
+    document.getElementById('handoverFilterDoctor').value = '';
+    state.handoverFilters = { dateRange: 'today', status: '', doctor: '' };
+    state.filteredHandover = [...PATIENTS];
+    renderHandoverTable();
+    updateHandoverStats();
+}
+
+function updateHandoverStats() {
+    const today = new Date().toISOString().split('T')[0];
+    const todayCount = PATIENTS.filter(p => {
+        if (!p.nextReminderDate) return false;
+        return daysBetween(p.nextReminderDate) <= 0 && (p.batchStatus || 'none') !== 'contacted';
+    }).length;
+    const overdueCount = PATIENTS.filter(p => {
+        if (!p.nextReminderDate) return false;
+        return daysBetween(p.nextReminderDate) < 0 && (p.batchStatus || 'none') !== 'contacted';
+    }).length;
+    const contactedCount = PATIENTS.filter(p => (p.batchStatus || 'none') === 'contacted').length;
+
+    document.getElementById('hdToday').textContent = todayCount;
+    document.getElementById('hdOverdue').textContent = overdueCount;
+    document.getElementById('hdContacted').textContent = contactedCount;
+    document.getElementById('hdTotal').textContent = state.filteredHandover.length;
+    document.getElementById('handoverCount').textContent = todayCount;
+}
+
+function renderHandoverTable() {
+    const tbody = document.getElementById('handoverTableBody');
+    const patients = state.filteredHandover;
+
+    patients.sort((a, b) => {
+        const ad = a.nextReminderDate || '9999-12-31';
+        const bd = b.nextReminderDate || '9999-12-31';
+        return ad.localeCompare(bd);
+    });
+
+    if (patients.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:40px; color:var(--text-400);">暂无符合条件的患者</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = patients.map(p => {
+        const avatarColor = getAvatarColor(p.name);
+        const recall = getRecallInfo(p);
+        const statusLabel = PATIENT_BATCH_LABELS[p.batchStatus] || '未处理';
+        const statusCls = p.batchStatus === 'contacted' ? 'batch-status-contacted' : p.batchStatus === 'postponed' ? 'batch-status-postponed' : 'batch-status-none';
+        const reminderHtml = p.nextReminderDate ? getNextFollowupTag(p.nextReminderDate) : '<span style="color:var(--text-300); font-size:12px;">未设置</span>';
+        const recentNote = p.followUpNote
+            ? `<div style="font-size:11px; color:var(--text-500); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${p.followUpNote}">📝 ${p.followUpNote}</div>`
+            : (p.lastVisit ? `<div style="font-size:11px; color:var(--text-400);">上次就诊：${formatDateShort(p.lastVisit)}</div>` : '<div style="font-size:11px; color:var(--text-400);">暂无记录</div>');
+
+        return `
+            <tr>
+                <td>${reminderHtml}</td>
+                <td>
+                    <div class="patient-cell">
+                        <div class="patient-avatar-sm" style="background:${avatarColor}">${p.name.charAt(0)}</div>
+                        <div>
+                            <span class="patient-name-sm">${p.name}</span>
+                            <span class="patient-phone">${p.phone}</span>
+                        </div>
+                    </div>
+                </td>
+                <td>${p.gender}·${p.age}岁</td>
+                <td><span class="project-tag tag-${p.project}">${p.project}</span></td>
+                <td>${p.doctor}</td>
+                <td style="font-size:12px;">${formatDateShort(recall.minDate)}<br>${formatDateShort(recall.maxDate)}</td>
+                <td><span class="urgency-badge ${recall.urgencyClass}">${recall.urgencyText}</span></td>
+                <td><span class="batch-status-tag ${statusCls}">${statusLabel}</span></td>
+                <td>${recentNote}</td>
+                <td>
+                    <div class="action-btns">
+                        <button class="btn-link" onclick="openHandoverNote('${p.id}')">更新备注</button>
+                        <button class="btn-link" onclick="changePatientStatus('${p.id}', 'contacted')">已联系</button>
+                        <button class="btn-link" onclick="changePatientStatus('${p.id}', 'postponed')">暂缓</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function changePatientStatus(pid, status) {
+    const p = PATIENTS.find(x => x.id === pid);
+    if (!p) return;
+    p.batchStatus = status;
+    persistPatients();
+    renderHandoverTable();
+    renderHandoverView();
+    renderPendingTable();
+    updateHandoverStats();
+    showToast(`${p.name} 已标记为${status === 'contacted' ? '已联系' : '暂缓安排'}`);
+}
+
+function switchFollowupTab(tab) {
+    state.followupTab = tab;
+    document.querySelectorAll('.followup-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.ftab === tab);
+    });
+    renderFollowupTable();
+}
+
+function getFollowupPatients() {
+    const today = new Date().toISOString().split('T')[0];
+    const candidates = WARNING_PATIENTS.filter(w => {
+        if (!w.nextFollowUpDate) return false;
+        return ['uncertain', 'unreachable', 'reschedule'].includes(w.callStatus);
+    });
+
+    switch (state.followupTab) {
+        case 'today':
+            return candidates.filter(w => {
+                const d = daysBetween(w.nextFollowUpDate);
+                return d <= 0 && w.callStatus !== 'confirmed';
+            });
+        case 'overdue':
+            return candidates.filter(w => {
+                return daysBetween(w.nextFollowUpDate) < 0 && w.callStatus !== 'confirmed';
+            });
+        case 'upcoming':
+            return candidates.filter(w => {
+                const d = daysBetween(w.nextFollowUpDate);
+                return d > 0 && d <= 3;
+            });
+        case 'done':
+            return WARNING_PATIENTS.filter(w => w.callHistory && w.callHistory.length > 0 && w.callStatus === 'confirmed');
+    }
+    return [];
+}
+
+function updateFollowupCounts() {
+    const today = new Date().toISOString().split('T')[0];
+    const candidates = WARNING_PATIENTS.filter(w =>
+        w.nextFollowUpDate && ['uncertain', 'unreachable', 'reschedule'].includes(w.callStatus)
+    );
+
+    const todayCount = candidates.filter(w => daysBetween(w.nextFollowUpDate) <= 0 && w.callStatus !== 'confirmed').length;
+    const overdueCount = candidates.filter(w => daysBetween(w.nextFollowUpDate) < 0 && w.callStatus !== 'confirmed').length;
+    const upcomingCount = candidates.filter(w => {
+        const d = daysBetween(w.nextFollowUpDate);
+        return d > 0 && d <= 3;
+    }).length;
+    const doneCount = WARNING_PATIENTS.filter(w => w.callHistory && w.callHistory.length > 0 && w.callStatus === 'confirmed').length;
+
+    document.getElementById('ftToday').textContent = todayCount;
+    document.getElementById('ftOverdue').textContent = overdueCount;
+    document.getElementById('ftUpcoming').textContent = upcomingCount;
+    document.getElementById('ftDone').textContent = doneCount;
+    document.getElementById('followupCount').textContent = todayCount;
+}
+
+function renderFollowupTable() {
+    const tbody = document.getElementById('followupTableBody');
+    const patients = getFollowupPatients();
+    updateFollowupCounts();
+
+    const statusMap = {
+        uncertain: { text: '待回复', cls: 'status-uncertain' },
+        unreachable: { text: '无法联系', cls: 'status-unreachable' },
+        reschedule: { text: '需要改期', cls: 'status-reschedule' },
+        confirmed: { text: '已完成联系', cls: 'status-confirmed' }
+    };
+    const riskClass = { high: 'risk-high', medium: 'risk-medium', low: 'risk-low' };
+    const riskText = { high: '高风险', medium: '中风险', low: '低风险' };
+
+    if (patients.length === 0) {
+        const emptyText = {
+            today: '今日无待办跟进任务 🎉',
+            overdue: '没有逾期的跟进任务',
+            upcoming: '近3天没有即将到期的跟进',
+            done: '暂无已完成的跟进记录'
+        };
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:40px; color:var(--text-400);">${emptyText[state.followupTab]}</td></tr>`;
+        return;
+    }
+
+    patients.sort((a, b) => (a.nextFollowUpDate || '9999-12-31').localeCompare(b.nextFollowUpDate || '9999-12-31'));
+
+    tbody.innerHTML = patients.map(w => {
+        const avatarColor = getAvatarColor(w.name);
+        const st = statusMap[w.callStatus] || statusMap.uncertain;
+        const latestCall = w.callHistory && w.callHistory.length > 0 ? w.callHistory[0] : null;
+        const lastCallText = latestCall
+            ? `<div style="font-size:12px;">${formatDateShort(latestCall.date)}</div><div style="font-size:11px; color:var(--text-500); max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${latestCall.note}">${latestCall.note}</div>`
+            : '<span style="color:var(--text-400); font-size:12px;">未沟通</span>';
+
+        return `
+            <tr>
+                <td><span class="status-tag ${st.cls}">${st.text}</span></td>
+                <td>
+                    <div class="patient-cell">
+                        <div class="patient-avatar-sm" style="background:${avatarColor}">${w.name.charAt(0)}</div>
+                        <div>
+                            <span class="patient-name-sm">${w.name}</span>
+                            <span class="patient-phone">${w.gender} · ${w.age}岁</span>
+                        </div>
+                    </div>
+                </td>
+                <td>${w.phone}</td>
+                <td><span class="risk-tag ${riskClass[w.riskLevel]}">${riskText[w.riskLevel]}</span></td>
+                <td>${w.doctor}</td>
+                <td><strong style="color:var(--danger)">${w.totalMisses}</strong> 次</td>
+                <td>${lastCallText}</td>
+                <td>${w.nextFollowUpDate ? getNextFollowupTag(w.nextFollowUpDate) : '-'}</td>
+                <td>
+                    <div class="action-btns">
+                        <button class="btn-link" onclick="openCallConfirm('${w.id}')">电话跟进</button>
+                        <button class="btn-link danger" onclick="viewWarningHistory('${w.id}')">查看历史</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
 function renderCalendarWeekView() {
     const container = document.getElementById('calendarWeekView');
     const weekDates = [];
@@ -1403,30 +1783,52 @@ function renderCalendarWeekView() {
         html += `<tr><td class="time-cell">${time}</td>`;
         weekDates.forEach(date => {
             let cellContent = '';
-            allChairs.forEach(({ doctor, chair }) => {
+
+            if (allChairs.length === 1) {
+                const { doctor, chair } = allChairs[0];
                 const occupied = getOccupiedSlots(chair, date);
                 if (occupied.has(time)) {
                     const appt = appointmentRecords.find(r =>
                         r.chair === chair && r.date === date && r.time === time
                     );
+                    const isSelected = state.selectedChair === chair && state.selectedDate === date && state.selectedTime === time;
                     if (appt) {
-                        const isSelected = state.selectedChair === chair && state.selectedDate === date && state.selectedTime === time;
                         const cellCls = isSelected ? 'calendar-cell-selected' : 'calendar-cell-occupied has-appointment';
-                        cellContent += `<div class="calendar-cell ${cellCls}" onclick="showSlotDetail('${chair}', '${date}', '${time}', event)" title="${appt.patient} - ${appt.project}">${appt.patient.charAt(0)}</div>`;
-                    } else if (!cellContent) {
+                        cellContent = `<div class="calendar-cell ${cellCls}" onclick="showSlotDetail('${chair}', '${date}', '${time}', event)" title="${appt.patient} - ${appt.project}">${appt.patient.charAt(0)}</div>`;
+                    } else {
                         cellContent = `<div class="calendar-cell calendar-cell-occupied">已占</div>`;
                     }
-                }
-            });
-            if (!cellContent) {
-                if (allChairs.length === 1) {
-                    const { doctor, chair } = allChairs[0];
+                } else {
                     const isSelected = state.selectedChair === chair && state.selectedDate === date && state.selectedTime === time;
                     const cellCls = isSelected ? 'calendar-cell-selected' : 'calendar-cell-available';
                     cellContent = `<div class="calendar-cell ${cellCls}" onclick="selectSlotFromSchedule('${doctor.id}','${chair}','${date}','${time}')">可约</div>`;
-                } else {
-                    cellContent = `<div class="calendar-cell calendar-cell-available">-</div>`;
                 }
+            } else {
+                let chairsHtml = '';
+                let allOccupied = true;
+                let allAvailable = true;
+                allChairs.forEach(({ doctor, chair }) => {
+                    const occupied = getOccupiedSlots(chair, date);
+                    const chairNum = chair.replace(/[^0-9]/g, '');
+                    if (occupied.has(time)) {
+                        allAvailable = false;
+                        const appt = appointmentRecords.find(r =>
+                            r.chair === chair && r.date === date && r.time === time
+                        );
+                        if (appt) {
+                            chairsHtml += `<span class="calendar-cell-chair chair-occupied" onclick="showSlotDetail('${chair}', '${date}', '${time}', event)" title="${appt.patient} - ${appt.project}">${chairNum}</span>`;
+                        } else {
+                            chairsHtml += `<span class="calendar-cell-chair chair-initial" title="${chair} 预设占用">${chairNum}</span>`;
+                        }
+                    } else {
+                        allOccupied = false;
+                        chairsHtml += `<span class="calendar-cell-chair chair-avail" onclick="selectSlotFromSchedule('${doctor.id}','${chair}','${date}','${time}')" title="${chair} 可约">${chairNum}</span>`;
+                    }
+                });
+                let wrapperCls = 'calendar-cell multi-chair';
+                if (allOccupied) wrapperCls += ' calendar-cell-occupied';
+                else if (allAvailable) wrapperCls += ' calendar-cell-available';
+                cellContent = `<div class="${wrapperCls}">${chairsHtml}</div>`;
             }
             html += `<td>${cellContent}</td>`;
         });
@@ -1541,6 +1943,7 @@ function init() {
     initModals();
     initHandoverNote();
     initWeekViewFilters();
+    initHandoverFilters();
 
     if (savedWarningFilters) applyWarningFilters(false);
     if (savedPatientFilters) applyFilters(false);
@@ -1550,6 +1953,8 @@ function init() {
     renderRecentRecords();
     updatePreview();
     renderHandoverView();
+    applyHandoverFilters();
+    renderFollowupTable();
 }
 
 document.addEventListener('DOMContentLoaded', init);

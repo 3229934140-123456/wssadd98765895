@@ -61,6 +61,25 @@
                 爽约预警看板
                 <span class="badge warning-badge" id="warningCount">0</span>
             </button>
+            <button class="tab-btn" data-tab="handover">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                护士长工作台
+                <span class="badge primary-badge" id="handoverCount">0</span>
+            </button>
+            <button class="tab-btn" data-tab="followup">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                    <circle cx="12" cy="12" r="9"/>
+                </svg>
+                跟进待办
+                <span class="badge danger-badge" id="followupCount">0</span>
+            </button>
         </nav>
 
         <main class="main-content">
@@ -358,6 +377,18 @@
                     </div>
 
                     <div class="appointment-preview">
+                        <div class="conflict-alert-panel" id="conflictAlertPanel" style="display:none;">
+                            <div class="conflict-alert-title">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                                    <line x1="12" y1="9" x2="12" y2="13"/>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                </svg>
+                                预约冲突检查
+                            </div>
+                            <div class="conflict-alert-list" id="conflictAlertList"></div>
+                        </div>
+
                         <div class="preview-card">
                             <h3>预约信息预览</h3>
                             <div class="preview-empty" id="previewEmpty">
@@ -524,6 +555,132 @@
                             </tr>
                         </thead>
                         <tbody id="warningTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="tab-panel" id="panel-handover">
+                <div class="panel-header">
+                    <h2>护士长工作台</h2>
+                    <p class="panel-desc">查看今日需要跟进的患者，快速更新处理状态和交接备注</p>
+                </div>
+
+                <div class="filter-bar">
+                    <div class="filter-item">
+                        <label>提醒日期</label>
+                        <select id="handoverFilterDate">
+                            <option value="today">今天及之前</option>
+                            <option value="all">全部</option>
+                            <option value="overdue">已逾期</option>
+                            <option value="tomorrow">明天及以后</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>处理状态</label>
+                        <select id="handoverFilterStatus">
+                            <option value="">全部状态</option>
+                            <option value="none">未处理</option>
+                            <option value="contacted">已联系</option>
+                            <option value="postponed">暂缓安排</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>主治医生</label>
+                        <select id="handoverFilterDoctor">
+                            <option value="">全部医生</option>
+                            <option value="李医生">李医生（种植科）</option>
+                            <option value="张医生">张医生（正畸科）</option>
+                            <option value="王医生">王医生（牙体牙髓）</option>
+                            <option value="赵医生">赵医生（修复科）</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" id="btnHandoverSearch">筛选</button>
+                    <button class="btn btn-ghost" id="btnHandoverReset">重置</button>
+                </div>
+
+                <div class="stats-bar">
+                    <div class="stat-card stat-overdue">
+                        <span class="stat-label">今日待跟进</span>
+                        <span class="stat-value" id="hdToday">0</span>
+                    </div>
+                    <div class="stat-card stat-urgent">
+                        <span class="stat-label">已逾期</span>
+                        <span class="stat-value" id="hdOverdue">0</span>
+                    </div>
+                    <div class="stat-card stat-normal">
+                        <span class="stat-label">已联系</span>
+                        <span class="stat-value" id="hdContacted">0</span>
+                    </div>
+                    <div class="stat-card stat-total">
+                        <span class="stat-label">合计</span>
+                        <span class="stat-value" id="hdTotal">0</span>
+                    </div>
+                </div>
+
+                <div class="data-table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>提醒日期</th>
+                                <th>患者姓名</th>
+                                <th>性别/年龄</th>
+                                <th>治疗项目</th>
+                                <th>主治医生</th>
+                                <th>复诊窗口</th>
+                                <th>紧急度</th>
+                                <th>处理状态</th>
+                                <th>最近记录</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="handoverTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="tab-panel" id="panel-followup">
+                <div class="panel-header">
+                    <h2>跟进待办中心</h2>
+                    <p class="panel-desc">爽约患者的跟进任务，待回复、无法联系、需要改期的患者自动归集</p>
+                </div>
+
+                <div class="followup-tabs">
+                    <button class="followup-tab-btn active" data-ftab="today" onclick="switchFollowupTab('today')">
+                        今日待办
+                        <span class="followup-tab-count" id="ftToday">0</span>
+                    </button>
+                    <button class="followup-tab-btn" data-ftab="overdue" onclick="switchFollowupTab('overdue')">
+                        逾期待办
+                        <span class="followup-tab-count followup-overdue" id="ftOverdue">0</span>
+                    </button>
+                    <button class="followup-tab-btn" data-ftab="upcoming" onclick="switchFollowupTab('upcoming')">
+                        即将到期
+                        <span class="followup-tab-count followup-upcoming" id="ftUpcoming">0</span>
+                    </button>
+                    <button class="followup-tab-btn" data-ftab="done" onclick="switchFollowupTab('done')">
+                        已完成
+                        <span class="followup-tab-count" id="ftDone">0</span>
+                    </button>
+                </div>
+
+                <div class="data-table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>跟进状态</th>
+                                <th>患者姓名</th>
+                                <th>联系电话</th>
+                                <th>风险等级</th>
+                                <th>主治医生</th>
+                                <th>累计爽约</th>
+                                <th>上次沟通</th>
+                                <th>提醒日期</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="followupTableBody">
                         </tbody>
                     </table>
                 </div>
