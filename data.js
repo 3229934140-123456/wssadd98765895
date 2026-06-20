@@ -344,6 +344,7 @@ PATIENTS.forEach(p => {
     p.batchStatus = 'none';
     if (!p.followUpNote) p.followUpNote = '';
     if (!p.nextReminderDate) p.nextReminderDate = '';
+    if (!p.actionHistory) p.actionHistory = [];
 });
 
 const PATIENT_BATCH_LABELS = {

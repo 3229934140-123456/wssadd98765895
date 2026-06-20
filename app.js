@@ -1210,6 +1210,8 @@ function saveCallRecord() {
 
     document.getElementById('callConfirmModal').classList.remove('show');
     applyWarningFilters(false);
+    renderFollowupTable();
+    renderWarningTable();
 
     const resultText = { confirmed: '已确认就诊', reschedule: '已记录改期意向', uncertain: '已记录待回复', unreachable: '已记录无法联系' };
     let toastMsg = `电话确认记录已保存（${resultText[result.value]}）`;
@@ -1430,9 +1432,53 @@ function openHandoverNote(patientId) {
             <span class="patient-phone">${p.gender}·${p.age}岁 · ${p.project} · ${p.doctor}</span>
         </div>
     `;
+    document.getElementById('handoverStatus').value = p.batchStatus || 'none';
     document.getElementById('handoverFollowNote').value = p.followUpNote || '';
     document.getElementById('handoverNextReminder').value = p.nextReminderDate || '';
+    renderHandoverHistory(p);
     document.getElementById('handoverNoteModal').classList.add('show');
+}
+
+function renderHandoverHistory(p) {
+    const container = document.getElementById('handoverHistory');
+    let history = [];
+
+    if (p.actionHistory && p.actionHistory.length > 0) {
+        history = [...p.actionHistory].sort((a, b) => b.date.localeCompare(a.date));
+    }
+
+    if (history.length === 0) {
+        container.innerHTML = '<div class="handover-history-empty">暂无操作记录</div>';
+        return;
+    }
+
+    container.innerHTML = history.map(h => {
+        const typeCls = h.type === 'status' ? `status-${h.value}` : `type-${h.type}`;
+        return `
+            <div class="handover-history-item ${typeCls}">
+                <div class="handover-history-date">${formatDateShort(h.date)}</div>
+                <div class="handover-history-content">
+                    <div class="handover-history-title">${h.title}</div>
+                    ${h.detail ? `<div class="handover-history-note">${h.detail}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function addPatientActionHistory(p, type, title, detail, value) {
+    if (!p.actionHistory) p.actionHistory = [];
+    p.actionHistory.unshift({
+        id: 'ah' + Date.now(),
+        date: new Date().toISOString().split('T')[0],
+        type,
+        title,
+        detail,
+        value
+    });
+    if (p.actionHistory.length > 20) {
+        p.actionHistory = p.actionHistory.slice(0, 20);
+    }
 }
 
 function initHandoverNote() {
@@ -1440,15 +1486,191 @@ function initHandoverNote() {
         const p = state.currentHandoverPatient;
         if (!p) return;
 
-        p.followUpNote = document.getElementById('handoverFollowNote').value.trim();
-        p.nextReminderDate = document.getElementById('handoverNextReminder').value || '';
+        const oldStatus = p.batchStatus || 'none';
+        const newStatus = document.getElementById('handoverStatus').value;
+        const newNote = document.getElementById('handoverFollowNote').value.trim();
+        const newReminder = document.getElementById('handoverNextReminder').value || '';
+
+        let statusChanged = oldStatus !== newStatus;
+        let noteChanged = newNote !== (p.followUpNote || '');
+        let reminderChanged = newReminder !== (p.nextReminderDate || '');
+
+        if (statusChanged) {
+            const statusLabels = { none: '未处理', contacted: '已联系', postponed: '暂缓安排' };
+            addPatientActionHistory(p, 'status', `状态变更：${statusLabels[oldStatus]} → ${statusLabels[newStatus]}`, '', newStatus);
+        }
+        if (noteChanged) {
+            addPatientActionHistory(p, 'note', '更新跟进备注', newNote);
+        }
+        if (reminderChanged) {
+            addPatientActionHistory(p, 'reminder', '更新下次提醒日期', newReminder ? `提醒日期：${formatDateCN(newReminder)}` : '清除提醒日期');
+        }
+
+        p.batchStatus = newStatus;
+        p.followUpNote = newNote;
+        p.nextReminderDate = newReminder;
         persistPatients();
 
         document.getElementById('handoverNoteModal').classList.remove('show');
         renderHandoverView();
+        renderHandoverTable();
         renderPendingTable();
+        updateHandoverStats();
         showToast('跟进备注已保存');
     });
+}
+
+function switchHandoverView(view) {
+    document.querySelectorAll('[data-hview]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.hview === view);
+    });
+    document.getElementById('handoverListView').style.display = view === 'list' ? 'block' : 'none';
+    document.getElementById('handoverWorkloadView').style.display = view === 'workload' ? 'block' : 'none';
+    if (view === 'workload') {
+        renderWorkloadView();
+    }
+}
+
+function renderWorkloadView() {
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() + i);
+        weekDates.push(d.toISOString().split('T')[0]);
+    }
+    const totalSlotsPerDay = TIME_SLOTS.length;
+    const totalSlotsWeek = totalSlotsPerDay * 7;
+
+    const doctorWorkloads = {};
+    const chairWorkloads = {};
+
+    DOCTORS.forEach(doc => {
+        doctorWorkloads[doc.name] = {
+            doctor: doc.name,
+            department: doc.department,
+            chairs: doc.chairs.length,
+            totalSlots: totalSlotsWeek * doc.chairs.length,
+            occupiedSlots: 0,
+            appointments: [],
+            highRiskCount: 0
+        };
+        doc.chairs.forEach(chair => {
+            chairWorkloads[chair] = {
+                chair,
+                doctor: doc.name,
+                totalSlots: totalSlotsWeek,
+                occupiedSlots: 0,
+                appointments: [],
+                highRiskCount: 0
+            };
+        });
+    });
+
+    Object.keys(INITIAL_DISABLED).forEach(chair => {
+        const slots = INITIAL_DISABLED[chair] || [];
+        weekDates.forEach(date => {
+            if (chairWorkloads[chair]) {
+                chairWorkloads[chair].occupiedSlots += slots.length;
+            }
+        });
+        const docName = DOCTORS.find(d => d.chairs.includes(chair));
+        if (docName && doctorWorkloads[docName.name]) {
+            doctorWorkloads[docName.name].occupiedSlots += slots.length * 7;
+        }
+    });
+
+    appointmentRecords.forEach(appt => {
+        if (weekDates.includes(appt.date)) {
+            if (chairWorkloads[appt.chair]) {
+                chairWorkloads[appt.chair].occupiedSlots += 1;
+                chairWorkloads[appt.chair].appointments.push(appt);
+            }
+            if (doctorWorkloads[appt.doctor]) {
+                doctorWorkloads[appt.doctor].occupiedSlots += 1;
+                doctorWorkloads[appt.doctor].appointments.push(appt);
+            }
+        }
+    });
+
+    WARNING_PATIENTS.forEach(w => {
+        if (w.riskLevel === 'high' && w.callStatus !== 'confirmed') {
+            if (doctorWorkloads[w.doctor]) {
+                doctorWorkloads[w.doctor].highRiskCount += 1;
+            }
+        }
+    });
+
+    const doctorGrid = document.getElementById('doctorWorkloadGrid');
+    doctorGrid.innerHTML = Object.values(doctorWorkloads).map(wl => {
+        const occupancyRate = Math.round((wl.occupiedSlots / wl.totalSlots) * 100);
+        const barCls = occupancyRate > 70 ? 'high' : '';
+        return `
+            <div class="workload-card">
+                <div class="workload-card-header">
+                    <div>
+                        <div class="workload-card-title">${wl.doctor}</div>
+                        <div class="workload-card-subtitle">${wl.department} · ${wl.chairs}个椅位</div>
+                    </div>
+                    ${wl.highRiskCount > 0 ? `<span class="risk-tag risk-high" style="font-size:11px;">高风险 ${wl.highRiskCount}人</span>` : ''}
+                </div>
+                <div class="workload-stats">
+                    <div class="workload-stat">
+                        <div class="workload-stat-value">${wl.appointments.length}</div>
+                        <div class="workload-stat-label">预约数</div>
+                    </div>
+                    <div class="workload-stat">
+                        <div class="workload-stat-value ${wl.highRiskCount > 0 ? 'danger' : ''}">${wl.highRiskCount > 0 ? wl.highRiskCount : 0}</div>
+                        <div class="workload-stat-label">高风险患者</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="workload-bar-text">
+                        <span>占用率</span>
+                        <span>${occupancyRate}%</span>
+                    </div>
+                    <div class="workload-bar">
+                        <div class="workload-bar-fill ${barCls}" style="width:${occupancyRate}%"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    const chairGrid = document.getElementById('chairWorkloadGrid');
+    chairGrid.innerHTML = Object.values(chairWorkloads).map(wl => {
+        const occupancyRate = Math.round((wl.occupiedSlots / wl.totalSlots) * 100);
+        const freeSlots = wl.totalSlots - wl.occupiedSlots;
+        const barCls = occupancyRate > 75 ? 'high' : '';
+        return `
+            <div class="workload-card">
+                <div class="workload-card-header">
+                    <div>
+                        <div class="workload-card-title">${wl.chair}</div>
+                        <div class="workload-card-subtitle">${wl.doctor}</div>
+                    </div>
+                </div>
+                <div class="workload-stats">
+                    <div class="workload-stat">
+                        <div class="workload-stat-value success">${freeSlots}</div>
+                        <div class="workload-stat-label">空闲时段</div>
+                    </div>
+                    <div class="workload-stat">
+                        <div class="workload-stat-value ${occupancyRate > 75 ? 'warning' : ''}">${wl.appointments.length}</div>
+                        <div class="workload-stat-label">已预约</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="workload-bar-text">
+                        <span>占用率</span>
+                        <span>${occupancyRate}%</span>
+                    </div>
+                    <div class="workload-bar">
+                        <div class="workload-bar-fill ${barCls}" style="width:${occupancyRate}%"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 function switchScheduleView(view) {
@@ -1508,7 +1730,7 @@ function applyHandoverFilters() {
         if (dateRange === 'all') return true;
 
         if (dateRange === 'today') {
-            if (!p.nextReminderDate) return true;
+            if (!p.nextReminderDate) return false;
             return daysBetween(p.nextReminderDate) <= 0;
         }
         if (dateRange === 'overdue') {
@@ -1576,9 +1798,15 @@ function renderHandoverTable() {
         const statusLabel = PATIENT_BATCH_LABELS[p.batchStatus] || '未处理';
         const statusCls = p.batchStatus === 'contacted' ? 'batch-status-contacted' : p.batchStatus === 'postponed' ? 'batch-status-postponed' : 'batch-status-none';
         const reminderHtml = p.nextReminderDate ? getNextFollowupTag(p.nextReminderDate) : '<span style="color:var(--text-300); font-size:12px;">未设置</span>';
-        const recentNote = p.followUpNote
-            ? `<div style="font-size:11px; color:var(--text-500); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${p.followUpNote}">📝 ${p.followUpNote}</div>`
-            : (p.lastVisit ? `<div style="font-size:11px; color:var(--text-400);">上次就诊：${formatDateShort(p.lastVisit)}</div>` : '<div style="font-size:11px; color:var(--text-400);">暂无记录</div>');
+        let recentNote = '';
+        if (p.actionHistory && p.actionHistory.length > 0) {
+            const latest = p.actionHistory[0];
+            recentNote = `<div style="font-size:11px; color:var(--text-500);">${formatDateShort(latest.date)}</div><div style="font-size:11px; color:var(--text-600); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${latest.title}${latest.detail ? '：' + latest.detail : ''}">${latest.title}</div>`;
+        } else if (p.lastVisit) {
+            recentNote = `<div style="font-size:11px; color:var(--text-400);">上次就诊：${formatDateShort(p.lastVisit)}</div>`;
+        } else {
+            recentNote = '<div style="font-size:11px; color:var(--text-400);">暂无记录</div>';
+        }
 
         return `
             <tr>
@@ -1614,6 +1842,10 @@ function renderHandoverTable() {
 function changePatientStatus(pid, status) {
     const p = PATIENTS.find(x => x.id === pid);
     if (!p) return;
+    const oldStatus = p.batchStatus || 'none';
+    if (oldStatus === status) return;
+    const statusLabels = { none: '未处理', contacted: '已联系', postponed: '暂缓安排' };
+    addPatientActionHistory(p, 'status', `状态变更：${statusLabels[oldStatus]} → ${statusLabels[status]}`, '', status);
     p.batchStatus = status;
     persistPatients();
     renderHandoverTable();

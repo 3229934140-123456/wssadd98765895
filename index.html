@@ -566,77 +566,101 @@
                     <p class="panel-desc">查看今日需要跟进的患者，快速更新处理状态和交接备注</p>
                 </div>
 
-                <div class="filter-bar">
-                    <div class="filter-item">
-                        <label>提醒日期</label>
-                        <select id="handoverFilterDate">
-                            <option value="today">今天及之前</option>
-                            <option value="all">全部</option>
-                            <option value="overdue">已逾期</option>
-                            <option value="tomorrow">明天及以后</option>
-                        </select>
-                    </div>
-                    <div class="filter-item">
-                        <label>处理状态</label>
-                        <select id="handoverFilterStatus">
-                            <option value="">全部状态</option>
-                            <option value="none">未处理</option>
-                            <option value="contacted">已联系</option>
-                            <option value="postponed">暂缓安排</option>
-                        </select>
-                    </div>
-                    <div class="filter-item">
-                        <label>主治医生</label>
-                        <select id="handoverFilterDoctor">
-                            <option value="">全部医生</option>
-                            <option value="李医生">李医生（种植科）</option>
-                            <option value="张医生">张医生（正畸科）</option>
-                            <option value="王医生">王医生（牙体牙髓）</option>
-                            <option value="赵医生">赵医生（修复科）</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-primary" id="btnHandoverSearch">筛选</button>
-                    <button class="btn btn-ghost" id="btnHandoverReset">重置</button>
+                <div class="view-toggle">
+                    <button class="view-btn active" data-hview="list" onclick="switchHandoverView('list')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                        今日清单
+                    </button>
+                    <button class="view-btn" data-hview="workload" onclick="switchHandoverView('workload')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+                        工作量视图
+                    </button>
                 </div>
 
-                <div class="stats-bar">
-                    <div class="stat-card stat-overdue">
-                        <span class="stat-label">今日待跟进</span>
-                        <span class="stat-value" id="hdToday">0</span>
+                <div class="view-content" id="handoverListView">
+                    <div class="filter-bar">
+                        <div class="filter-item">
+                            <label>提醒日期</label>
+                            <select id="handoverFilterDate">
+                                <option value="today">今天及之前</option>
+                                <option value="all">全部</option>
+                                <option value="overdue">已逾期</option>
+                                <option value="tomorrow">明天及以后</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label>处理状态</label>
+                            <select id="handoverFilterStatus">
+                                <option value="">全部状态</option>
+                                <option value="none">未处理</option>
+                                <option value="contacted">已联系</option>
+                                <option value="postponed">暂缓安排</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label>主治医生</label>
+                            <select id="handoverFilterDoctor">
+                                <option value="">全部医生</option>
+                                <option value="李医生">李医生（种植科）</option>
+                                <option value="张医生">张医生（正畸科）</option>
+                                <option value="王医生">王医生（牙体牙髓）</option>
+                                <option value="赵医生">赵医生（修复科）</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" id="btnHandoverSearch">筛选</button>
+                        <button class="btn btn-ghost" id="btnHandoverReset">重置</button>
                     </div>
-                    <div class="stat-card stat-urgent">
-                        <span class="stat-label">已逾期</span>
-                        <span class="stat-value" id="hdOverdue">0</span>
+
+                    <div class="stats-bar">
+                        <div class="stat-card stat-overdue">
+                            <span class="stat-label">今日待跟进</span>
+                            <span class="stat-value" id="hdToday">0</span>
+                        </div>
+                        <div class="stat-card stat-urgent">
+                            <span class="stat-label">已逾期</span>
+                            <span class="stat-value" id="hdOverdue">0</span>
+                        </div>
+                        <div class="stat-card stat-normal">
+                            <span class="stat-label">已联系</span>
+                            <span class="stat-value" id="hdContacted">0</span>
+                        </div>
+                        <div class="stat-card stat-total">
+                            <span class="stat-label">合计</span>
+                            <span class="stat-value" id="hdTotal">0</span>
+                        </div>
                     </div>
-                    <div class="stat-card stat-normal">
-                        <span class="stat-label">已联系</span>
-                        <span class="stat-value" id="hdContacted">0</span>
-                    </div>
-                    <div class="stat-card stat-total">
-                        <span class="stat-label">合计</span>
-                        <span class="stat-value" id="hdTotal">0</span>
+
+                    <div class="data-table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>提醒日期</th>
+                                    <th>患者姓名</th>
+                                    <th>性别/年龄</th>
+                                    <th>治疗项目</th>
+                                    <th>主治医生</th>
+                                    <th>复诊窗口</th>
+                                    <th>紧急度</th>
+                                    <th>处理状态</th>
+                                    <th>最近记录</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="handoverTableBody">
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <div class="data-table-wrapper">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>提醒日期</th>
-                                <th>患者姓名</th>
-                                <th>性别/年龄</th>
-                                <th>治疗项目</th>
-                                <th>主治医生</th>
-                                <th>复诊窗口</th>
-                                <th>紧急度</th>
-                                <th>处理状态</th>
-                                <th>最近记录</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="handoverTableBody">
-                        </tbody>
-                    </table>
+                <div class="view-content" id="handoverWorkloadView" style="display:none;">
+                    <div class="workload-section">
+                        <h3 class="workload-title">医生工作量（未来一周）</h3>
+                        <div class="workload-grid" id="doctorWorkloadGrid"></div>
+                    </div>
+                    <div class="workload-section">
+                        <h3 class="workload-title">椅位工作量（未来一周）</h3>
+                        <div class="workload-grid" id="chairWorkloadGrid"></div>
+                    </div>
                 </div>
             </section>
 
@@ -778,12 +802,24 @@
             <div class="modal-body">
                 <div class="handover-patient-info" id="handoverPatientInfo"></div>
                 <div class="form-group">
+                    <label>处理状态</label>
+                    <select id="handoverStatus">
+                        <option value="none">未处理</option>
+                        <option value="contacted">已联系</option>
+                        <option value="postponed">暂缓安排</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>跟进备注</label>
-                    <textarea id="handoverFollowNote" rows="4" placeholder="记录跟进情况、患者诉求、注意事项等..."></textarea>
+                    <textarea id="handoverFollowNote" rows="3" placeholder="记录跟进情况、患者诉求、注意事项等..."></textarea>
                 </div>
                 <div class="form-group">
                     <label>下次提醒日期</label>
                     <input type="date" id="handoverNextReminder">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>历史记录</label>
+                    <div class="handover-history" id="handoverHistory"></div>
                 </div>
             </div>
             <div class="modal-footer">
