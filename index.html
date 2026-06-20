@@ -116,6 +116,18 @@
                     <button class="btn btn-ghost" id="btnResetFilter">重置</button>
                 </div>
 
+                <div class="batch-bar" id="batchBar">
+                    <label class="batch-select-all">
+                        <input type="checkbox" id="selectAllPatients">
+                        <span class="check-box"></span>
+                        全选
+                    </label>
+                    <span class="batch-count">已选 <strong id="selectedCount">0</strong> 人</span>
+                    <button class="btn btn-sm btn-primary" id="btnBatchContacted">批量标记已联系</button>
+                    <button class="btn btn-sm btn-ghost" id="btnBatchPostpone">批量暂缓安排</button>
+                    <button class="btn btn-sm btn-ghost" id="btnBatchExport">导出名单</button>
+                </div>
+
                 <div class="stats-bar">
                     <div class="stat-card stat-overdue">
                         <span class="stat-label">已超期</span>
@@ -139,6 +151,7 @@
                     <table class="data-table">
                         <thead>
                             <tr>
+                                <th class="th-checkbox"></th>
                                 <th>患者姓名</th>
                                 <th>性别/年龄</th>
                                 <th>联系电话</th>
@@ -147,6 +160,7 @@
                                 <th>上次就诊</th>
                                 <th>建议复诊窗口</th>
                                 <th>紧急度</th>
+                                <th>处理状态</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -160,6 +174,22 @@
                 <div class="panel-header">
                     <h2>确认预约流程</h2>
                     <p class="panel-desc">为患者选择合适的医生、椅位和时间，生成复诊预约记录</p>
+                </div>
+
+                <div class="schedule-view-section" id="scheduleViewSection">
+                    <div class="schedule-header">
+                        <h3>当日排班视图</h3>
+                        <div class="schedule-date-picker">
+                            <label>查看日期</label>
+                            <select id="scheduleDateSelect"></select>
+                        </div>
+                    </div>
+                    <div class="schedule-grid" id="scheduleGrid"></div>
+                    <div class="schedule-legend">
+                        <span class="legend-item"><span class="legend-dot legend-available"></span>可约</span>
+                        <span class="legend-item"><span class="legend-dot legend-occupied"></span>已占</span>
+                        <span class="legend-item"><span class="legend-dot legend-selected"></span>已选</span>
+                    </div>
                 </div>
 
                 <div class="appointment-layout">
@@ -325,6 +355,50 @@
                 <div class="panel-header">
                     <h2>爽约预警看板</h2>
                     <p class="panel-desc">近30天内存在迟到、临时取消、未到记录的患者，预约前请电话确认</p>
+                </div>
+
+                <div class="filter-bar warning-filter-bar">
+                    <div class="filter-item">
+                        <label>风险等级</label>
+                        <select id="warnFilterRisk">
+                            <option value="">全部</option>
+                            <option value="high">高风险</option>
+                            <option value="medium">中风险</option>
+                            <option value="low">低风险</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>医生</label>
+                        <select id="warnFilterDoctor">
+                            <option value="">全部医生</option>
+                            <option value="李医生">李医生（种植科）</option>
+                            <option value="张医生">张医生（正畸科）</option>
+                            <option value="王医生">王医生（牙体牙髓）</option>
+                            <option value="赵医生">赵医生（修复科）</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>最近爽约类型</label>
+                        <select id="warnFilterType">
+                            <option value="">全部类型</option>
+                            <option value="未到诊">未到诊</option>
+                            <option value="迟到">迟到</option>
+                            <option value="临时取消">临时取消</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>确认状态</label>
+                        <select id="warnFilterStatus">
+                            <option value="">全部状态</option>
+                            <option value="pending">待确认</option>
+                            <option value="uncertain">待回复</option>
+                            <option value="reschedule">需要改期</option>
+                            <option value="confirmed">已确认就诊</option>
+                            <option value="unreachable">无法联系</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" id="btnWarnSearch">筛选</button>
+                    <button class="btn btn-ghost" id="btnWarnReset">重置</button>
                 </div>
 
                 <div class="warning-summary">

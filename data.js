@@ -214,11 +214,41 @@ const TIME_SLOTS = [
     '15:30', '16:00', '16:30', '17:00'
 ];
 
-function generateDisabledSlots() {
-    const disabled = new Set();
-    for (let i = 0; i < 3; i++) {
-        const slot = TIME_SLOTS[Math.floor(Math.random() * TIME_SLOTS.length)];
-        disabled.add(slot);
+const INITIAL_DISABLED = {
+    '1号椅位': ['09:00', '10:30', '14:30'],
+    '2号椅位': ['08:30', '11:00', '15:30'],
+    '3号椅位': ['09:30', '14:00', '16:00'],
+    '4号椅位': ['10:00', '15:00'],
+    '5号椅位': ['08:30', '10:30', '16:30'],
+    '6号椅位': ['09:00', '14:30'],
+    '7号椅位': ['11:30', '15:30'],
+    '8号椅位': ['09:30', '11:00', '17:00']
+};
+
+const occupiedSlots = {};
+
+function getOccupiedSlots(chair, date) {
+    const key = `${chair}_${date}`;
+    if (!occupiedSlots[key]) {
+        occupiedSlots[key] = new Set(INITIAL_DISABLED[chair] || []);
     }
-    return disabled;
+    return occupiedSlots[key];
 }
+
+function markSlotOccupied(chair, date, time) {
+    const key = `${chair}_${date}`;
+    if (!occupiedSlots[key]) {
+        occupiedSlots[key] = new Set(INITIAL_DISABLED[chair] || []);
+    }
+    occupiedSlots[key].add(time);
+}
+
+PATIENTS.forEach(p => {
+    p.batchStatus = 'none';
+});
+
+const PATIENT_BATCH_LABELS = {
+    none: '',
+    contacted: '已联系',
+    postponed: '暂缓安排'
+};
