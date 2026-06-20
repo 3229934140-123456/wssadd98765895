@@ -2003,3 +2003,475 @@ body {
         width: 95vw;
     }
 }
+
+.view-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.view-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: var(--text-600);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.view-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.view-btn:hover {
+    border-color: var(--primary-light);
+    color: var(--primary);
+}
+
+.view-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+}
+
+.view-content {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.handover-groups {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.handover-group {
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.handover-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 16px;
+    background: var(--bg-50);
+    border-bottom: 1px solid var(--border);
+}
+
+.handover-group-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-800);
+    margin: 0;
+    flex: 1;
+}
+
+.group-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.group-unhandled { background: var(--text-400); }
+.group-contacted { background: var(--success); }
+.group-postponed { background: var(--warning); }
+
+.group-count {
+    background: var(--bg-100);
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-600);
+}
+
+.handover-list {
+    padding: 8px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.handover-card {
+    padding: 12px;
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.handover-card:hover {
+    border-color: var(--primary-light);
+    background: var(--bg-50);
+}
+
+.handover-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.handover-card-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-800);
+}
+
+.handover-card-meta {
+    font-size: 11px;
+    color: var(--text-500);
+}
+
+.handover-card-info {
+    font-size: 12px;
+    color: var(--text-600);
+    line-height: 1.6;
+}
+
+.handover-card-info .urgency-badge {
+    margin-top: 4px;
+    display: inline-block;
+}
+
+.handover-card-note {
+    margin-top: 8px;
+    padding: 8px;
+    background: var(--bg-50);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    color: var(--text-600);
+    line-height: 1.5;
+}
+
+.handover-card-note .note-label {
+    color: var(--primary);
+    font-weight: 600;
+    margin-right: 4px;
+}
+
+.handover-card-reminder {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--warning-dark);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.handover-card-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 6px;
+}
+
+.handover-card-actions .btn-link {
+    font-size: 11px;
+    padding: 2px 6px;
+}
+
+.schedule-view-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-100);
+    padding: 4px;
+    border-radius: var(--radius-md);
+}
+
+.schedule-tab-btn {
+    padding: 6px 16px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    color: var(--text-600);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.schedule-tab-btn:hover {
+    color: var(--primary);
+}
+
+.schedule-tab-btn.active {
+    background: var(--white);
+    color: var(--primary);
+    box-shadow: var(--shadow-sm);
+    font-weight: 500;
+}
+
+.schedule-week-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.schedule-week-filter label {
+    font-size: 12px;
+    color: var(--text-500);
+}
+
+.schedule-week-filter select {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+}
+
+.calendar-week-view {
+    overflow-x: auto;
+}
+
+.calendar-week-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.calendar-week-table th {
+    padding: 10px 8px;
+    text-align: center;
+    background: var(--bg-50);
+    border: 1px solid var(--border);
+    font-weight: 600;
+    color: var(--text-700);
+    min-width: 100px;
+}
+
+.calendar-week-table th.today-col {
+    background: var(--primary-light);
+    color: var(--primary-dark);
+}
+
+.calendar-week-table td {
+    padding: 6px;
+    border: 1px solid var(--border);
+    height: 40px;
+    vertical-align: top;
+}
+
+.calendar-cell {
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.calendar-cell:hover {
+    transform: scale(1.02);
+}
+
+.calendar-cell-available {
+    background: var(--success-light);
+    color: var(--success);
+}
+
+.calendar-cell-occupied {
+    background: var(--bg-100);
+    color: var(--text-500);
+    text-decoration: line-through;
+}
+
+.calendar-cell-occupied.has-appointment {
+    background: var(--danger-light);
+    color: var(--danger-dark);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.calendar-cell-selected {
+    background: var(--primary-light);
+    color: var(--primary-dark);
+    font-weight: 600;
+}
+
+.calendar-week-table th.time-col {
+    min-width: 60px;
+    background: var(--bg-100);
+}
+
+.calendar-week-table td.time-cell {
+    background: var(--bg-50);
+    text-align: center;
+    font-weight: 500;
+    color: var(--text-600);
+    padding: 6px 4px;
+}
+
+.followup-input {
+    margin-bottom: 16px;
+}
+
+.input-hint {
+    display: block;
+    font-size: 11px;
+    color: var(--text-400);
+    margin-top: 4px;
+}
+
+.next-followup-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.next-followup-today {
+    background: #FEF3C7;
+    color: #B45309;
+}
+
+.next-followup-overdue {
+    background: #FEE2E2;
+    color: var(--danger);
+}
+
+.next-followup-upcoming {
+    background: #DBEAFE;
+    color: #1D4ED8;
+}
+
+.call-history-timeline {
+    margin-top: 12px;
+}
+
+.call-history-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-50);
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+    border-left: 3px solid var(--border);
+}
+
+.call-history-item.confirmed { border-left-color: var(--success); }
+.call-history-item.reschedule { border-left-color: var(--primary); }
+.call-history-item.uncertain { border-left-color: #7C3AED; }
+.call-history-item.unreachable { border-left-color: var(--text-400); }
+
+.call-history-date {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-500);
+    min-width: 70px;
+}
+
+.call-history-content {
+    flex: 1;
+}
+
+.call-history-result {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-800);
+    margin-bottom: 4px;
+}
+
+.call-history-note {
+    font-size: 12px;
+    color: var(--text-600);
+    line-height: 1.5;
+}
+
+.call-history-extra {
+    font-size: 11px;
+    color: var(--primary);
+    margin-top: 4px;
+}
+
+.handover-patient-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    background: var(--bg-50);
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+}
+
+.slot-detail-card {
+    padding: 16px;
+    background: var(--bg-50);
+    border-radius: var(--radius-md);
+}
+
+.slot-detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.slot-detail-row:last-child {
+    border-bottom: none;
+}
+
+.slot-detail-label {
+    color: var(--text-500);
+}
+
+.slot-detail-value {
+    color: var(--text-800);
+    font-weight: 500;
+}
+
+.modal-small {
+    max-width: 420px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-700);
+    margin-bottom: 6px;
+}
+
+.form-group textarea,
+.form-group input[type="date"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+.form-group textarea:focus,
+.form-group input[type="date"]:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+@media (max-width: 1200px) {
+    .handover-groups {
+        grid-template-columns: 1fr;
+    }
+}

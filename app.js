@@ -5,10 +5,28 @@ const state = {
     selectedDate: null,
     selectedTime: null,
     currentWarningPatient: null,
+    currentHandoverPatient: null,
     filteredPatients: [...PATIENTS],
     filteredWarnings: [...WARNING_PATIENTS],
     selectedPatientIds: new Set(),
-    scheduleDate: null
+    scheduleDate: null,
+    scheduleView: 'day',
+    pendingView: 'list',
+    warningFilters: {
+        risk: '',
+        doctor: '',
+        missType: '',
+        status: ''
+    },
+    patientFilters: {
+        doctor: '',
+        project: '',
+        dateFrom: '',
+        dateTo: '',
+        urgency: ''
+    },
+    weekFilterDoctor: '',
+    weekFilterChair: ''
 };
 
 function formatDateCN(dateStr) {
@@ -219,10 +237,12 @@ function initBatchActions() {
             const p = PATIENTS.find(x => x.id === id);
             if (p) p.batchStatus = 'contacted';
         });
+        persistPatients();
         const count = state.selectedPatientIds.size;
         state.selectedPatientIds.clear();
         document.getElementById('selectAllPatients').checked = false;
         renderPendingTable();
+        renderHandoverView();
         showToast(`已将 ${count} 位患者标记为已联系`);
     });
 
@@ -235,10 +255,12 @@ function initBatchActions() {
             const p = PATIENTS.find(x => x.id === id);
             if (p) p.batchStatus = 'postponed';
         });
+        persistPatients();
         const count = state.selectedPatientIds.size;
         state.selectedPatientIds.clear();
         document.getElementById('selectAllPatients').checked = false;
         renderPendingTable();
+        renderHandoverView();
         showToast(`已将 ${count} 位患者标记为暂缓安排`);
     });
 
@@ -252,11 +274,11 @@ function initBatchActions() {
             return;
         }
 
-        const header = '序号\t姓名\t性别\t年龄\t电话\t治疗项目\t主治医生\t上次就诊\t建议复诊窗口\t紧急度\t处理状态';
+        const header = '序号\t姓名\t性别\t年龄\t电话\t治疗项目\t主治医生\t上次就诊\t建议复诊窗口\t紧急度\t处理状态\t跟进备注\t下次提醒日期';
         const rows = patients.map((p, i) => {
             const recall = getRecallInfo(p);
             const urgencyMap = { overdue: '已超期', urgent: '即将到期', normal: '正常窗口' };
-            return `${i + 1}\t${p.name}\t${p.gender}\t${p.age}\t${p.phone}\t${p.project}\t${p.doctor}\t${p.lastVisit}\t${recall.minDate}~${recall.maxDate}\t${urgencyMap[recall.urgency]}\t${PATIENT_BATCH_LABELS[p.batchStatus] || '未处理'}`;
+            return `${i + 1}\t${p.name}\t${p.gender}\t${p.age}\t${p.phone}\t${p.project}\t${p.doctor}\t${p.lastVisit}\t${recall.minDate}~${recall.maxDate}\t${urgencyMap[recall.urgency]}\t${PATIENT_BATCH_LABELS[p.batchStatus] || '未处理'}\t${p.followUpNote || ''}\t${p.nextReminderDate || ''}`;
         });
         const content = header + '\n' + rows.join('\n');
 
@@ -293,12 +315,15 @@ function initFilters() {
     document.getElementById('btnResetFilter').addEventListener('click', resetFilters);
 }
 
-function applyFilters() {
+function applyFilters(showToastFlag = true) {
     const doctor = document.getElementById('filterDoctor').value;
     const project = document.getElementById('filterProject').value;
     const dateFrom = document.getElementById('filterDateFrom').value;
     const dateTo = document.getElementById('filterDateTo').value;
     const urgency = document.getElementById('filterUrgency').value;
+
+    state.patientFilters = { doctor, project, dateFrom, dateTo, urgency };
+    saveToStorage(STORAGE_KEYS.PATIENT_FILTERS, state.patientFilters);
 
     state.filteredPatients = PATIENTS.filter(p => {
         if (doctor && p.doctor !== doctor) return false;
@@ -315,7 +340,8 @@ function applyFilters() {
     state.selectedPatientIds.clear();
     document.getElementById('selectAllPatients').checked = false;
     renderPendingTable();
-    showToast(`筛选完成，共 ${state.filteredPatients.length} 条结果`);
+    renderHandoverView();
+    if (showToastFlag) showToast(`筛选完成，共 ${state.filteredPatients.length} 条结果`);
 }
 
 function resetFilters() {
@@ -324,10 +350,13 @@ function resetFilters() {
     document.getElementById('filterDateFrom').value = '';
     document.getElementById('filterDateTo').value = '';
     document.getElementById('filterUrgency').value = '';
+    state.patientFilters = { doctor: '', project: '', dateFrom: '', dateTo: '', urgency: '' };
+    saveToStorage(STORAGE_KEYS.PATIENT_FILTERS, state.patientFilters);
     state.filteredPatients = [...PATIENTS];
     state.selectedPatientIds.clear();
     document.getElementById('selectAllPatients').checked = false;
     renderPendingTable();
+    renderHandoverView();
 }
 
 function showPatientDetail(patientId) {
@@ -831,7 +860,10 @@ function submitAppointment() {
 
     markSlotOccupied(state.selectedChair, state.selectedDate, state.selectedTime);
     appointmentRecords.unshift(record);
+    persistAppointments();
     renderRecentRecords();
+    renderScheduleView();
+    renderCalendarWeekView();
     resetAppointmentForm();
     showToast(`预约成功！已为 ${record.patient} 生成复诊记录`);
 }
@@ -857,11 +889,14 @@ function renderRecentRecords() {
     `).join('');
 }
 
-function applyWarningFilters() {
+function applyWarningFilters(showToastFlag = true) {
     const risk = document.getElementById('warnFilterRisk').value;
     const doctor = document.getElementById('warnFilterDoctor').value;
     const missType = document.getElementById('warnFilterType').value;
     const status = document.getElementById('warnFilterStatus').value;
+
+    state.warningFilters = { risk, doctor, missType, status };
+    saveToStorage(STORAGE_KEYS.WARNING_FILTERS, state.warningFilters);
 
     state.filteredWarnings = WARNING_PATIENTS.filter(w => {
         if (risk && w.riskLevel !== risk) return false;
@@ -872,10 +907,17 @@ function applyWarningFilters() {
     });
 
     const sortOrder = { high: 0, medium: 1, low: 2 };
-    state.filteredWarnings.sort((a, b) => sortOrder[a.riskLevel] - sortOrder[b.riskLevel]);
+    state.filteredWarnings.sort((a, b) => {
+        const riskDiff = sortOrder[a.riskLevel] - sortOrder[b.riskLevel];
+        if (riskDiff !== 0) return riskDiff;
+        if (a.nextFollowUpDate && b.nextFollowUpDate) return a.nextFollowUpDate.localeCompare(b.nextFollowUpDate);
+        if (a.nextFollowUpDate) return -1;
+        if (b.nextFollowUpDate) return 1;
+        return 0;
+    });
 
     renderWarningTable();
-    showToast(`筛选完成，共 ${state.filteredWarnings.length} 位患者`);
+    if (showToastFlag) showToast(`筛选完成，共 ${state.filteredWarnings.length} 位患者`);
 }
 
 function resetWarningFilters() {
@@ -883,6 +925,8 @@ function resetWarningFilters() {
     document.getElementById('warnFilterDoctor').value = '';
     document.getElementById('warnFilterType').value = '';
     document.getElementById('warnFilterStatus').value = '';
+    state.warningFilters = { risk: '', doctor: '', missType: '', status: '' };
+    saveToStorage(STORAGE_KEYS.WARNING_FILTERS, state.warningFilters);
     state.filteredWarnings = [...WARNING_PATIENTS];
     renderWarningTable();
 }
@@ -915,15 +959,17 @@ function renderWarningTable() {
     };
 
     if (warnings.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:var(--text-400);">暂无符合条件的预警患者</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:40px; color:var(--text-400);">暂无符合条件的预警患者</td></tr>';
         return;
     }
 
     tbody.innerHTML = warnings.map(w => {
         const avatarColor = getAvatarColor(w.name);
-        const callRecordPreview = w.callRecord
-            ? `<div style="font-size:10px; color:var(--text-400); margin-top:3px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${formatDateShort(w.callRecord.date)}：${w.callRecord.note || '已记录'}</div>`
+        const latestRecord = w.callHistory && w.callHistory.length > 0 ? w.callHistory[0] : null;
+        const callRecordPreview = latestRecord
+            ? `<div style="font-size:10px; color:var(--text-400); margin-top:3px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${formatDateShort(latestRecord.date)}：${latestRecord.note || '已记录'}</div>`
             : '';
+        const nextFollowupHtml = w.nextFollowUpDate ? getNextFollowupTag(w.nextFollowUpDate) : '<span style="color:var(--text-300); font-size:12px;">-</span>';
         return `
             <tr class="${rowClass[w.riskLevel]}">
                 <td><span class="risk-tag ${riskClass[w.riskLevel]}">${riskText[w.riskLevel]}</span></td>
@@ -953,6 +999,7 @@ function renderWarningTable() {
                     <span class="status-tag ${statusClass[w.callStatus] || ''}">${statusText[w.callStatus] || w.callStatus}</span>
                     ${callRecordPreview}
                 </td>
+                <td>${nextFollowupHtml}</td>
                 <td>
                     <div class="action-btns">
                         <button class="btn-link" onclick="openCallConfirm('${w.id}')">电话确认</button>
@@ -1018,20 +1065,58 @@ function saveCallRecord() {
     if (!w) return;
 
     w.callStatus = result.value;
-    w.callRecord = {
+
+    const historyRecord = {
+        id: 'ch' + Date.now(),
         result: result.value,
         note: document.getElementById('callNote').value.trim() || '无备注',
         date: new Date().toISOString().split('T')[0]
     };
     if (result.value === 'reschedule') {
-        w.callRecord.rescheduleDate = document.getElementById('rescheduleDate').value || '';
+        historyRecord.rescheduleDate = document.getElementById('rescheduleDate').value || '';
     }
 
+    if (!w.callHistory) w.callHistory = [];
+    w.callHistory.unshift(historyRecord);
+
+    const nextFollowUp = document.getElementById('nextFollowUpDate').value;
+    if (nextFollowUp) {
+        w.nextFollowUpDate = nextFollowUp;
+    } else if (result.value === 'uncertain') {
+        w.nextFollowUpDate = daysLater(1);
+    } else if (result.value === 'unreachable') {
+        w.nextFollowUpDate = daysLater(2);
+    } else if (result.value === 'reschedule') {
+        w.nextFollowUpDate = document.getElementById('rescheduleDate').value;
+    } else {
+        delete w.nextFollowUpDate;
+    }
+
+    persistWarningPatients();
+
     document.getElementById('callConfirmModal').classList.remove('show');
-    renderWarningTable();
+    applyWarningFilters(false);
 
     const resultText = { confirmed: '已确认就诊', reschedule: '已记录改期意向', uncertain: '已记录待回复', unreachable: '已记录无法联系' };
-    showToast(`电话确认记录已保存（${resultText[result.value]}）`);
+    let toastMsg = `电话确认记录已保存（${resultText[result.value]}）`;
+    if (w.nextFollowUpDate) {
+        toastMsg += `，下次跟进：${formatDateShort(w.nextFollowUpDate)}`;
+    }
+    showToast(toastMsg);
+}
+
+function getNextFollowupTag(dateStr) {
+    if (!dateStr) return '';
+    const days = daysBetween(dateStr);
+    let cls = 'next-followup-upcoming';
+    let text = `${days >= 0 ? days + '天后' : Math.abs(days) + '天前'}`;
+    if (days === 0) {
+        cls = 'next-followup-today';
+        text = '今天';
+    } else if (days < 0) {
+        cls = 'next-followup-overdue';
+    }
+    return `<span class="next-followup-tag ${cls}">⏰ ${text}</span>`;
 }
 
 function viewWarningHistory(patientId) {
@@ -1046,29 +1131,60 @@ function viewWarningHistory(patientId) {
         unreachable: '无法联系', pending: '待确认'
     };
 
-    let callRecordSection = '';
-    if (w.callRecord) {
-        const result = w.callRecord.result || '';
-        const note = w.callRecord.note || '无备注';
-        const date = w.callRecord.date || '-';
-        const rescheduleDate = w.callRecord.rescheduleDate || '';
+    const resultTextMap = {
+        confirmed: '确认就诊，按时到达',
+        reschedule: '需要改期',
+        uncertain: '待定，稍后回复',
+        unreachable: '无法联系（无人接听/关机）'
+    };
 
-        callRecordSection = `
+    let callHistorySection = '';
+    if (w.callHistory && w.callHistory.length > 0) {
+        const historyItems = w.callHistory.map(c => {
+            const result = c.result || '';
+            const note = c.note || '无备注';
+            const date = c.date || '-';
+            const rescheduleDate = c.rescheduleDate || '';
+            return `
+                <div class="call-history-item ${result}">
+                    <div class="call-history-date">${formatDateShort(date)}</div>
+                    <div class="call-history-content">
+                        <div class="call-history-result">${resultTextMap[result] || result}</div>
+                        <div class="call-history-note">${note}</div>
+                        ${rescheduleDate ? `<div class="call-history-extra">改期意向日期：${formatDateCN(rescheduleDate)}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        callHistorySection = `
             <div class="detail-section">
-                <h4>最近电话确认记录</h4>
-                <div class="info-item" style="background:var(--bg-50);">
-                    <div class="info-label">确认日期：${formatDateCN(date)} · 确认结果：${statusTextMap[result] || result}</div>
-                    <div class="info-value" style="line-height:1.7; font-weight:400; margin-top:6px;">沟通备注：${note}</div>
-                    ${rescheduleDate ? `<div style="font-size:12px; color:var(--primary); margin-top:6px;">改期意向日期：${formatDateCN(rescheduleDate)}</div>` : ''}
+                <h4>电话沟通历史（${w.callHistory.length} 次）</h4>
+                <div class="call-history-timeline">
+                    ${historyItems}
                 </div>
             </div>
         `;
     } else {
-        callRecordSection = `
+        callHistorySection = `
             <div class="detail-section">
-                <h4>最近电话确认记录</h4>
+                <h4>电话沟通历史</h4>
                 <div class="info-item" style="background:var(--bg-50);">
                     <div class="info-value" style="color:var(--text-400); font-weight:400;">尚无电话确认记录，请先进行电话确认</div>
+                </div>
+            </div>
+        `;
+    }
+
+    let nextFollowUpSection = '';
+    if (w.nextFollowUpDate) {
+        nextFollowUpSection = `
+            <div class="detail-section">
+                <h4>下次跟进提醒</h4>
+                <div class="info-item" style="background:var(--warning-light);">
+                    <div class="info-value" style="font-weight:600; color:var(--warning-dark);">
+                        预计跟进日期：${formatDateCN(w.nextFollowUpDate)} ${getNextFollowupTag(w.nextFollowUpDate)}
+                    </div>
                 </div>
             </div>
         `;
@@ -1082,6 +1198,7 @@ function viewWarningHistory(patientId) {
                 <div class="detail-meta">
                     ${w.gender} · ${w.age}岁 · ${w.phone}<br>
                     ${w.project} · ${w.doctor} · 当前状态：<span class="status-tag status-${w.callStatus}" style="font-size:12px;">${statusTextMap[w.callStatus] || w.callStatus}</span>
+                    ${w.nextFollowUpDate ? `<br>下次跟进：${getNextFollowupTag(w.nextFollowUpDate)}` : ''}
                 </div>
             </div>
         </div>
@@ -1096,7 +1213,9 @@ function viewWarningHistory(patientId) {
             </div>
         </div>
 
-        ${callRecordSection}
+        ${nextFollowUpSection}
+
+        ${callHistorySection}
 
         <div class="detail-section">
             <h4>爽约历史记录</h4>
@@ -1116,6 +1235,259 @@ function viewWarningHistory(patientId) {
     modal.classList.add('show');
 }
 
+function switchPendingView(view) {
+    state.pendingView = view;
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+    });
+    document.getElementById('pendingListView').style.display = view === 'list' ? 'block' : 'none';
+    document.getElementById('pendingHandoverView').style.display = view === 'handover' ? 'block' : 'none';
+    if (view === 'handover') {
+        renderHandoverView();
+    }
+}
+
+function renderHandoverView() {
+    const patients = state.filteredPatients;
+    const groups = {
+        unhandled: [],
+        contacted: [],
+        postponed: []
+    };
+
+    patients.forEach(p => {
+        if (p.batchStatus === 'contacted') groups.contacted.push(p);
+        else if (p.batchStatus === 'postponed') groups.postponed.push(p);
+        else groups.unhandled.push(p);
+    });
+
+    document.getElementById('handoverUnhandledCount').textContent = groups.unhandled.length;
+    document.getElementById('handoverContactedCount').textContent = groups.contacted.length;
+    document.getElementById('handoverPostponedCount').textContent = groups.postponed.length;
+
+    const renderGroup = (list) => {
+        if (list.length === 0) {
+            return '<div style="text-align:center; padding:20px; color:var(--text-400); font-size:12px;">暂无患者</div>';
+        }
+        return list.map(p => {
+            const recall = getRecallInfo(p);
+            const avatarColor = getAvatarColor(p.name);
+            const noteHtml = p.followUpNote ? `<div class="handover-card-note"><span class="note-label">跟进：</span>${p.followUpNote}</div>` : '';
+            const reminderHtml = p.nextReminderDate ? `<div class="handover-card-reminder">⏰ 下次提醒：${formatDateShort(p.nextReminderDate)}</div>` : '';
+            return `
+                <div class="handover-card" onclick="openHandoverNote('${p.id}')">
+                    <div class="handover-card-header">
+                        <div class="patient-avatar-sm" style="background:${avatarColor}; width:28px; height:28px; font-size:11px;">${p.name.charAt(0)}</div>
+                        <div>
+                            <div class="handover-card-name">${p.name} <span class="project-tag tag-${p.project}" style="font-size:10px; padding:1px 6px; margin-left:4px;">${p.project}</span></div>
+                            <div class="handover-card-meta">${p.gender}·${p.age}岁 · ${p.doctor}</div>
+                        </div>
+                    </div>
+                    <div class="handover-card-info">
+                        复诊窗口：${formatDateShort(recall.minDate)} - ${formatDateShort(recall.maxDate)}<br>
+                        <span class="urgency-badge ${recall.urgencyClass}">${recall.urgencyText}</span>
+                    </div>
+                    ${noteHtml}
+                    ${reminderHtml}
+                    <div class="handover-card-actions">
+                        <button class="btn-link" onclick="event.stopPropagation(); quickBook('${p.id}')">预约</button>
+                        <button class="btn-link" onclick="event.stopPropagation(); showPatientDetail('${p.id}')">详情</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    };
+
+    document.getElementById('handoverUnhandledList').innerHTML = renderGroup(groups.unhandled);
+    document.getElementById('handoverContactedList').innerHTML = renderGroup(groups.contacted);
+    document.getElementById('handoverPostponedList').innerHTML = renderGroup(groups.postponed);
+}
+
+function openHandoverNote(patientId) {
+    const p = PATIENTS.find(x => x.id === patientId);
+    if (!p) return;
+    state.currentHandoverPatient = p;
+
+    const avatarColor = getAvatarColor(p.name);
+    document.getElementById('handoverPatientInfo').innerHTML = `
+        <div class="patient-avatar-sm" style="background:${avatarColor}; width:42px; height:42px; font-size:15px;">${p.name.charAt(0)}</div>
+        <div>
+            <span class="patient-name-sm" style="font-size:14px;">${p.name}</span>
+            <span class="patient-phone">${p.gender}·${p.age}岁 · ${p.project} · ${p.doctor}</span>
+        </div>
+    `;
+    document.getElementById('handoverFollowNote').value = p.followUpNote || '';
+    document.getElementById('handoverNextReminder').value = p.nextReminderDate || '';
+    document.getElementById('handoverNoteModal').classList.add('show');
+}
+
+function initHandoverNote() {
+    document.getElementById('btnSaveHandoverNote').addEventListener('click', () => {
+        const p = state.currentHandoverPatient;
+        if (!p) return;
+
+        p.followUpNote = document.getElementById('handoverFollowNote').value.trim();
+        p.nextReminderDate = document.getElementById('handoverNextReminder').value || '';
+        persistPatients();
+
+        document.getElementById('handoverNoteModal').classList.remove('show');
+        renderHandoverView();
+        renderPendingTable();
+        showToast('跟进备注已保存');
+    });
+}
+
+function switchScheduleView(view) {
+    state.scheduleView = view;
+    document.querySelectorAll('.schedule-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.sview === view);
+    });
+    document.getElementById('scheduleGrid').style.display = view === 'day' ? 'block' : 'none';
+    document.getElementById('calendarWeekView').style.display = view === 'week' ? 'block' : 'none';
+    document.getElementById('scheduleDatePicker').style.display = view === 'day' ? 'flex' : 'none';
+    document.getElementById('scheduleWeekFilter').style.display = view === 'week' ? 'flex' : 'none';
+    if (view === 'week') {
+        renderCalendarWeekView();
+    } else {
+        renderScheduleView();
+    }
+}
+
+function initWeekViewFilters() {
+    document.getElementById('weekFilterDoctor').addEventListener('change', (e) => {
+        state.weekFilterDoctor = e.target.value;
+        renderCalendarWeekView();
+    });
+    document.getElementById('weekFilterChair').addEventListener('change', (e) => {
+        state.weekFilterChair = e.target.value;
+        renderCalendarWeekView();
+    });
+}
+
+function renderCalendarWeekView() {
+    const container = document.getElementById('calendarWeekView');
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() + i);
+        weekDates.push(d.toISOString().split('T')[0]);
+    }
+
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    const today = new Date().toISOString().split('T')[0];
+
+    let allChairs = [];
+    DOCTORS.forEach(d => {
+        d.chairs.forEach(c => {
+            if (state.weekFilterDoctor && d.name !== state.weekFilterDoctor) return;
+            if (state.weekFilterChair && c !== state.weekFilterChair) return;
+            allChairs.push({ doctor: d, chair: c });
+        });
+    });
+
+    if (allChairs.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-400);">请选择医生或椅位</div>';
+        return;
+    }
+
+    let html = '<table class="calendar-week-table"><thead><tr><th class="time-col">时段</th>';
+    weekDates.forEach((date, idx) => {
+        const d = new Date(date);
+        const isToday = date === today;
+        const label = idx === 0 ? '今天' : `${d.getMonth() + 1}/${d.getDate()} 周${weekdays[d.getDay()]}`;
+        html += `<th class="${isToday ? 'today-col' : ''}">${label}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    TIME_SLOTS.forEach(time => {
+        html += `<tr><td class="time-cell">${time}</td>`;
+        weekDates.forEach(date => {
+            let cellContent = '';
+            allChairs.forEach(({ doctor, chair }) => {
+                const occupied = getOccupiedSlots(chair, date);
+                if (occupied.has(time)) {
+                    const appt = appointmentRecords.find(r =>
+                        r.chair === chair && r.date === date && r.time === time
+                    );
+                    if (appt) {
+                        const isSelected = state.selectedChair === chair && state.selectedDate === date && state.selectedTime === time;
+                        const cellCls = isSelected ? 'calendar-cell-selected' : 'calendar-cell-occupied has-appointment';
+                        cellContent += `<div class="calendar-cell ${cellCls}" onclick="showSlotDetail('${chair}', '${date}', '${time}', event)" title="${appt.patient} - ${appt.project}">${appt.patient.charAt(0)}</div>`;
+                    } else if (!cellContent) {
+                        cellContent = `<div class="calendar-cell calendar-cell-occupied">已占</div>`;
+                    }
+                }
+            });
+            if (!cellContent) {
+                if (allChairs.length === 1) {
+                    const { doctor, chair } = allChairs[0];
+                    const isSelected = state.selectedChair === chair && state.selectedDate === date && state.selectedTime === time;
+                    const cellCls = isSelected ? 'calendar-cell-selected' : 'calendar-cell-available';
+                    cellContent = `<div class="calendar-cell ${cellCls}" onclick="selectSlotFromSchedule('${doctor.id}','${chair}','${date}','${time}')">可约</div>`;
+                } else {
+                    cellContent = `<div class="calendar-cell calendar-cell-available">-</div>`;
+                }
+            }
+            html += `<td>${cellContent}</td>`;
+        });
+        html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function showSlotDetail(chair, date, time, event) {
+    event.stopPropagation();
+    const appt = appointmentRecords.find(r =>
+        r.chair === chair && r.date === date && r.time === time
+    );
+    if (!appt) return;
+
+    const body = document.getElementById('slotDetailBody');
+    body.innerHTML = `
+        <div class="slot-detail-card">
+            <div class="slot-detail-row">
+                <span class="slot-detail-label">患者</span>
+                <span class="slot-detail-value">${appt.patient}（${appt.patientGender}·${appt.patientAge}岁）</span>
+            </div>
+            <div class="slot-detail-row">
+                <span class="slot-detail-label">联系电话</span>
+                <span class="slot-detail-value">${appt.phone}</span>
+            </div>
+            <div class="slot-detail-row">
+                <span class="slot-detail-label">治疗项目</span>
+                <span class="slot-detail-value">${appt.project}</span>
+            </div>
+            <div class="slot-detail-row">
+                <span class="slot-detail-label">主治医生</span>
+                <span class="slot-detail-value">${appt.doctor}</span>
+            </div>
+            <div class="slot-detail-row">
+                <span class="slot-detail-label">椅位</span>
+                <span class="slot-detail-value">${appt.chair}</span>
+            </div>
+            <div class="slot-detail-row">
+                <span class="slot-detail-label">就诊时间</span>
+                <span class="slot-detail-value">${formatDateCN(appt.date)} ${appt.time}</span>
+            </div>
+            ${appt.services.length > 0 ? `
+            <div class="slot-detail-row">
+                <span class="slot-detail-label">附加服务</span>
+                <span class="slot-detail-value">${appt.services.join('、')}</span>
+            </div>
+            ` : ''}
+            ${appt.note ? `
+            <div class="slot-detail-row">
+                <span class="slot-detail-label">备注</span>
+                <span class="slot-detail-value">${appt.note}</span>
+            </div>
+            ` : ''}
+        </div>
+    `;
+    document.getElementById('slotDetailModal').classList.add('show');
+}
+
 function initModals() {
     document.querySelectorAll('[data-close="modal"]').forEach(el => {
         el.addEventListener('click', () => {
@@ -1131,6 +1503,27 @@ function initModals() {
 }
 
 function init() {
+    loadPersistedData();
+
+    const savedWarningFilters = loadFromStorage(STORAGE_KEYS.WARNING_FILTERS, null);
+    if (savedWarningFilters) {
+        state.warningFilters = savedWarningFilters;
+        document.getElementById('warnFilterRisk').value = savedWarningFilters.risk || '';
+        document.getElementById('warnFilterDoctor').value = savedWarningFilters.doctor || '';
+        document.getElementById('warnFilterType').value = savedWarningFilters.missType || '';
+        document.getElementById('warnFilterStatus').value = savedWarningFilters.status || '';
+    }
+
+    const savedPatientFilters = loadFromStorage(STORAGE_KEYS.PATIENT_FILTERS, null);
+    if (savedPatientFilters) {
+        state.patientFilters = savedPatientFilters;
+        document.getElementById('filterDoctor').value = savedPatientFilters.doctor || '';
+        document.getElementById('filterProject').value = savedPatientFilters.project || '';
+        document.getElementById('filterDateFrom').value = savedPatientFilters.dateFrom || '';
+        document.getElementById('filterDateTo').value = savedPatientFilters.dateTo || '';
+        document.getElementById('filterUrgency').value = savedPatientFilters.urgency || '';
+    }
+
     initDateDisplay();
     initTabs();
     initFilters();
@@ -1146,11 +1539,17 @@ function init() {
     initCallForm();
     initWarningFilters();
     initModals();
+    initHandoverNote();
+    initWeekViewFilters();
+
+    if (savedWarningFilters) applyWarningFilters(false);
+    if (savedPatientFilters) applyFilters(false);
 
     renderPendingTable();
     renderWarningTable();
     renderRecentRecords();
     updatePreview();
+    renderHandoverView();
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -116,6 +116,17 @@
                     <button class="btn btn-ghost" id="btnResetFilter">重置</button>
                 </div>
 
+                <div class="view-toggle">
+                    <button class="view-btn active" data-view="list" onclick="switchPendingView('list')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                        列表视图
+                    </button>
+                    <button class="view-btn" data-view="handover" onclick="switchPendingView('handover')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+                        交接清单
+                    </button>
+                </div>
+
                 <div class="batch-bar" id="batchBar">
                     <label class="batch-select-all">
                         <input type="checkbox" id="selectAllPatients">
@@ -147,26 +158,57 @@
                     </div>
                 </div>
 
-                <div class="data-table-wrapper">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th class="th-checkbox"></th>
-                                <th>患者姓名</th>
-                                <th>性别/年龄</th>
-                                <th>联系电话</th>
-                                <th>治疗项目</th>
-                                <th>主治医生</th>
-                                <th>上次就诊</th>
-                                <th>建议复诊窗口</th>
-                                <th>紧急度</th>
-                                <th>处理状态</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="pendingTableBody">
-                        </tbody>
-                    </table>
+                <div class="view-content" id="pendingListView">
+                    <div class="data-table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th class="th-checkbox"></th>
+                                    <th>患者姓名</th>
+                                    <th>性别/年龄</th>
+                                    <th>联系电话</th>
+                                    <th>治疗项目</th>
+                                    <th>主治医生</th>
+                                    <th>上次就诊</th>
+                                    <th>建议复诊窗口</th>
+                                    <th>紧急度</th>
+                                    <th>处理状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendingTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="view-content" id="pendingHandoverView" style="display:none;">
+                    <div class="handover-groups">
+                        <div class="handover-group">
+                            <div class="handover-group-header">
+                                <span class="group-dot group-unhandled"></span>
+                                <h3>未处理</h3>
+                                <span class="group-count" id="handoverUnhandledCount">0</span>
+                            </div>
+                            <div class="handover-list" id="handoverUnhandledList"></div>
+                        </div>
+                        <div class="handover-group">
+                            <div class="handover-group-header">
+                                <span class="group-dot group-contacted"></span>
+                                <h3>已联系</h3>
+                                <span class="group-count" id="handoverContactedCount">0</span>
+                            </div>
+                            <div class="handover-list" id="handoverContactedList"></div>
+                        </div>
+                        <div class="handover-group">
+                            <div class="handover-group-header">
+                                <span class="group-dot group-postponed"></span>
+                                <h3>暂缓安排</h3>
+                                <span class="group-count" id="handoverPostponedCount">0</span>
+                            </div>
+                            <div class="handover-list" id="handoverPostponedList"></div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -178,13 +220,39 @@
 
                 <div class="schedule-view-section" id="scheduleViewSection">
                     <div class="schedule-header">
-                        <h3>当日排班视图</h3>
-                        <div class="schedule-date-picker">
+                        <div class="schedule-view-tabs">
+                            <button class="schedule-tab-btn active" data-sview="day" onclick="switchScheduleView('day')">当日排班</button>
+                            <button class="schedule-tab-btn" data-sview="week" onclick="switchScheduleView('week')">一周总览</button>
+                        </div>
+                        <div class="schedule-date-picker" id="scheduleDatePicker">
                             <label>查看日期</label>
                             <select id="scheduleDateSelect"></select>
                         </div>
+                        <div class="schedule-week-filter" id="scheduleWeekFilter" style="display:none;">
+                            <label>医生</label>
+                            <select id="weekFilterDoctor">
+                                <option value="">全部医生</option>
+                                <option value="李医生">李医生（种植科）</option>
+                                <option value="张医生">张医生（正畸科）</option>
+                                <option value="王医生">王医生（牙体牙髓）</option>
+                                <option value="赵医生">赵医生（修复科）</option>
+                            </select>
+                            <label>椅位</label>
+                            <select id="weekFilterChair">
+                                <option value="">全部椅位</option>
+                                <option value="1号椅位">1号椅位</option>
+                                <option value="2号椅位">2号椅位</option>
+                                <option value="3号椅位">3号椅位</option>
+                                <option value="4号椅位">4号椅位</option>
+                                <option value="5号椅位">5号椅位</option>
+                                <option value="6号椅位">6号椅位</option>
+                                <option value="7号椅位">7号椅位</option>
+                                <option value="8号椅位">8号椅位</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="schedule-grid" id="scheduleGrid"></div>
+                    <div class="calendar-week-view" id="calendarWeekView" style="display:none;"></div>
                     <div class="schedule-legend">
                         <span class="legend-item"><span class="legend-dot legend-available"></span>可约</span>
                         <span class="legend-item"><span class="legend-dot legend-occupied"></span>已占</span>
@@ -451,6 +519,7 @@
                                 <th>累计爽约</th>
                                 <th>最近一次</th>
                                 <th>处理状态</th>
+                                <th>下次跟进</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
@@ -511,6 +580,11 @@
                         <label>改期意向日期</label>
                         <input type="date" id="rescheduleDate">
                     </div>
+                    <div class="followup-input">
+                        <label>下次跟进提醒日期</label>
+                        <input type="date" id="nextFollowUpDate">
+                        <span class="input-hint">选择"待定"或"无法联系"时建议设置</span>
+                    </div>
                     <label>沟通备注</label>
                     <textarea id="callNote" rows="3" placeholder="记录与患者沟通的关键信息..."></textarea>
                 </div>
@@ -518,6 +592,46 @@
             <div class="modal-footer">
                 <button class="btn btn-ghost" data-close="modal">取消</button>
                 <button class="btn btn-primary" id="btnSaveCallRecord">保存记录</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="slotDetailModal">
+        <div class="modal-overlay" data-close="modal"></div>
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>时段详情</h2>
+                <button class="modal-close" data-close="modal">×</button>
+            </div>
+            <div class="modal-body" id="slotDetailBody">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" data-close="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="handoverNoteModal">
+        <div class="modal-overlay" data-close="modal"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>跟进备注</h2>
+                <button class="modal-close" data-close="modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="handover-patient-info" id="handoverPatientInfo"></div>
+                <div class="form-group">
+                    <label>跟进备注</label>
+                    <textarea id="handoverFollowNote" rows="4" placeholder="记录跟进情况、患者诉求、注意事项等..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>下次提醒日期</label>
+                    <input type="date" id="handoverNextReminder">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" data-close="modal">取消</button>
+                <button class="btn btn-primary" id="btnSaveHandoverNote">保存</button>
             </div>
         </div>
     </div>

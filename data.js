@@ -156,57 +156,153 @@ const WARNING_PATIENTS = [
         id: 'w1', name: '黄飞', gender: '男', age: 39, phone: '138****1234',
         noShowCount: 2, lateCount: 1, cancelCount: 1, totalMisses: 4, riskLevel: 'high',
         lastMissDate: daysAgo(8), lastMissType: '未到诊', lastMissDesc: '预约9:00种植复诊未到，电话无人接听',
-        callStatus: 'pending', project: '种植', doctor: '李医生'
+        callStatus: 'pending', project: '种植', doctor: '李医生',
+        callHistory: []
     },
     {
         id: 'w2', name: '徐婷婷', gender: '女', age: 24, phone: '139****5678',
         noShowCount: 1, lateCount: 2, cancelCount: 0, totalMisses: 3, riskLevel: 'medium',
         lastMissDate: daysAgo(15), lastMissType: '迟到', lastMissDesc: '正畸复诊迟到45分钟，影响后续患者预约',
-        callStatus: 'pending', project: '正畸', doctor: '张医生'
+        callStatus: 'pending', project: '正畸', doctor: '张医生',
+        callHistory: []
     },
     {
         id: 'w3', name: '马大伟', gender: '男', age: 52, phone: '136****9012',
         noShowCount: 3, lateCount: 0, cancelCount: 2, totalMisses: 5, riskLevel: 'high',
         lastMissDate: daysAgo(5), lastMissType: '临时取消', lastMissDesc: '预约当天上午来电取消，称临时有事',
         callStatus: 'confirmed', project: '修复', doctor: '赵医生',
-        callRecord: { result: 'confirmed', note: '已电话确认，患者表示本次会准时到达，上次因单位急事取消', date: daysAgo(2) }
+        callHistory: [
+            { id: 'c1', result: 'confirmed', note: '已电话确认，患者表示本次会准时到达，上次因单位急事取消', date: daysAgo(2) }
+        ]
     },
     {
         id: 'w4', name: '林小雨', gender: '女', age: 18, phone: '137****3456',
         noShowCount: 0, lateCount: 3, cancelCount: 0, totalMisses: 3, riskLevel: 'medium',
         lastMissDate: daysAgo(10), lastMissType: '迟到', lastMissDesc: '学生患者，正畸复诊迟到30分钟，称路上堵车',
-        callStatus: 'pending', project: '正畸', doctor: '张医生'
+        callStatus: 'pending', project: '正畸', doctor: '张医生',
+        callHistory: []
     },
     {
         id: 'w5', name: '何志强', gender: '男', age: 44, phone: '135****7890',
         noShowCount: 1, lateCount: 0, cancelCount: 3, totalMisses: 4, riskLevel: 'high',
         lastMissDate: daysAgo(3), lastMissType: '未到诊', lastMissDesc: '根管治疗复诊未到，未提前通知',
         callStatus: 'reschedule', project: '根管', doctor: '王医生',
-        callRecord: { result: 'reschedule', note: '患者称近期出差，希望改到下周三下午', date: daysAgo(1), rescheduleDate: daysLater(5) }
+        callHistory: [
+            { id: 'c2', result: 'reschedule', note: '患者称近期出差，希望改到下周三下午', date: daysAgo(1), rescheduleDate: daysLater(5) }
+        ],
+        nextFollowUpDate: daysLater(3)
     },
     {
         id: 'w6', name: '郭美丽', gender: '女', age: 30, phone: '138****2345',
         noShowCount: 0, lateCount: 1, cancelCount: 1, totalMisses: 2, riskLevel: 'low',
         lastMissDate: daysAgo(22), lastMissType: '临时取消', lastMissDesc: '因发烧取消预约，已改期就诊',
         callStatus: 'confirmed', project: '修复', doctor: '赵医生',
-        callRecord: { result: 'confirmed', note: '已确认，患者上次是因为发烧，理解。本次预约确认可到。', date: daysAgo(20) }
+        callHistory: [
+            { id: 'c3', result: 'confirmed', note: '已确认，患者上次是因为发烧，理解。本次预约确认可到。', date: daysAgo(20) }
+        ]
     },
     {
         id: 'w7', name: '罗文', gender: '男', age: 61, phone: '139****6789',
         noShowCount: 2, lateCount: 1, cancelCount: 0, totalMisses: 3, riskLevel: 'medium',
         lastMissDate: daysAgo(18), lastMissType: '未到诊', lastMissDesc: '老年患者，家属称忘记了预约时间',
-        callStatus: 'pending', project: '种植', doctor: '李医生'
+        callStatus: 'pending', project: '种植', doctor: '李医生',
+        callHistory: []
     },
     {
         id: 'w8', name: '谢晓婷', gender: '女', age: 27, phone: '136****0123',
         noShowCount: 1, lateCount: 2, cancelCount: 2, totalMisses: 5, riskLevel: 'high',
         lastMissDate: daysAgo(7), lastMissType: '临时取消', lastMissDesc: '预约前1小时临时取消，称心情不好不想出门',
         callStatus: 'unreachable', project: '正畸', doctor: '张医生',
-        callRecord: { result: 'unreachable', note: '连续拨打3次均无人接听，已发送提醒短信', date: daysAgo(4) }
+        callHistory: [
+            { id: 'c4', result: 'unreachable', note: '连续拨打3次均无人接听，已发送提醒短信', date: daysAgo(4) }
+        ],
+        nextFollowUpDate: daysLater(1)
     }
 ];
 
 let appointmentRecords = [];
+
+const STORAGE_KEYS = {
+    WARNING_PATIENTS: 'dental_warning_patients',
+    PATIENTS: 'dental_patients',
+    APPOINTMENTS: 'dental_appointments',
+    WARNING_FILTERS: 'dental_warning_filters',
+    PATIENT_FILTERS: 'dental_patient_filters',
+    OCCUPIED_SLOTS: 'dental_occupied_slots'
+};
+
+function saveToStorage(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+        console.warn('保存到localStorage失败:', e);
+    }
+}
+
+function loadFromStorage(key, defaultValue) {
+    try {
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : defaultValue;
+    } catch (e) {
+        console.warn('从localStorage读取失败:', e);
+        return defaultValue;
+    }
+}
+
+function persistWarningPatients() {
+    saveToStorage(STORAGE_KEYS.WARNING_PATIENTS, WARNING_PATIENTS);
+}
+
+function persistPatients() {
+    saveToStorage(STORAGE_KEYS.PATIENTS, PATIENTS);
+}
+
+function persistAppointments() {
+    saveToStorage(STORAGE_KEYS.APPOINTMENTS, appointmentRecords);
+}
+
+function loadPersistedData() {
+    const savedWarnings = loadFromStorage(STORAGE_KEYS.WARNING_PATIENTS, null);
+    if (savedWarnings && Array.isArray(savedWarnings) && savedWarnings.length > 0) {
+        savedWarnings.forEach(sw => {
+            const original = WARNING_PATIENTS.find(w => w.id === sw.id);
+            if (original) {
+                Object.assign(original, sw);
+            }
+        });
+    }
+
+    const savedPatients = loadFromStorage(STORAGE_KEYS.PATIENTS, null);
+    if (savedPatients && Array.isArray(savedPatients) && savedPatients.length > 0) {
+        savedPatients.forEach(sp => {
+            const original = PATIENTS.find(p => p.id === sp.id);
+            if (original) {
+                Object.assign(original, sp);
+            }
+        });
+    }
+
+    const savedAppointments = loadFromStorage(STORAGE_KEYS.APPOINTMENTS, []);
+    if (savedAppointments && savedAppointments.length > 0) {
+        appointmentRecords = savedAppointments;
+    }
+
+    const savedOccupied = loadFromStorage(STORAGE_KEYS.OCCUPIED_SLOTS, {});
+    Object.keys(savedOccupied).forEach(key => {
+        if (!occupiedSlots[key]) {
+            occupiedSlots[key] = new Set();
+        }
+        savedOccupied[key].forEach(slot => occupiedSlots[key].add(slot));
+    });
+}
+
+function persistOccupiedSlots() {
+    const data = {};
+    Object.keys(occupiedSlots).forEach(key => {
+        data[key] = Array.from(occupiedSlots[key]);
+    });
+    saveToStorage(STORAGE_KEYS.OCCUPIED_SLOTS, data);
+}
 
 const TIME_SLOTS = [
     '08:30', '09:00', '09:30', '10:00', '10:30',
@@ -241,10 +337,13 @@ function markSlotOccupied(chair, date, time) {
         occupiedSlots[key] = new Set(INITIAL_DISABLED[chair] || []);
     }
     occupiedSlots[key].add(time);
+    persistOccupiedSlots();
 }
 
 PATIENTS.forEach(p => {
     p.batchStatus = 'none';
+    if (!p.followUpNote) p.followUpNote = '';
+    if (!p.nextReminderDate) p.nextReminderDate = '';
 });
 
 const PATIENT_BATCH_LABELS = {
